@@ -1,0 +1,842 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voorleeshulp — De Kerkuil</title>
+<style>
+  :root{
+    /* Kleuren gebaseerd op de huisstijl van basisschool De Kerkuil (Limmen) */
+    --bg1:#eaf6fb;
+    --bg2:#f2fbe9;
+    --card:#ffffff;
+    --ink:#2c3e50;
+    --accent:#2ea8da;      /* kerkuil-blauw */
+    --accent-dark:#1c86b4;
+    --accent2:#f4901e;     /* kerkuil-oranje (snavel) */
+    --accent2-dark:#d97812;
+    --girl:#93278f;        /* kerkuil-paars */
+    --girl-dark:#7a1f77;
+    --boy:#7ac142;         /* kerkuil-groen */
+    --boy-dark:#5fa028;
+    --soft:#f0f7f2;
+    --border:#d9ecd3;
+    --highlight-sentence:#dcf0fa;
+    --highlight-word:#ffcb80;
+    --radius:20px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    min-height:100vh;
+    font-family:"Comic Sans MS","Comic Neue",Verdana,"Trebuchet MS",sans-serif;
+    background:linear-gradient(160deg,var(--bg1),var(--bg2));
+    color:var(--ink);
+    display:flex;
+    justify-content:center;
+    padding:24px 14px 60px;
+  }
+  body.font-normal{ font-family:"Segoe UI","Trebuchet MS",Verdana,sans-serif; }
+
+  .wrap{ width:100%; max-width:820px; }
+
+  header{ text-align:center; margin-bottom:20px; }
+  header .owl-badge{ display:block; margin:0 auto 8px; }
+  header h1{
+    font-size:clamp(28px,5vw,40px);
+    margin:0 0 4px;
+    color:var(--accent-dark);
+  }
+  header p{ margin:0 auto; max-width:520px; color:#5b7285; font-size:16px; }
+
+  .card{
+    background:var(--card);
+    border-radius:var(--radius);
+    padding:22px;
+    box-shadow:0 10px 30px rgba(60,90,120,.12);
+    margin-bottom:18px;
+  }
+
+  /* Voice picker */
+  .voice-row{ display:flex; gap:14px; flex-wrap:wrap; }
+  .voice-btn{
+    flex:1 1 160px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:10px;
+    padding:16px;
+    border-radius:16px;
+    border:3px solid var(--border);
+    background:var(--soft);
+    font-size:19px;
+    font-weight:bold;
+    cursor:pointer;
+    transition:transform .12s ease, border-color .12s ease, background .12s ease;
+    color:var(--ink);
+  }
+  .voice-btn:hover{ transform:translateY(-2px); }
+  .voice-btn .emoji{ font-size:28px; }
+  .voice-btn.girl.active{ border-color:var(--girl); background:#ffe9f0; color:var(--girl-dark); }
+  .voice-btn.boy.active{ border-color:var(--boy); background:#e7f2fd; color:var(--boy-dark); }
+
+  .voice-extra{ margin-top:14px; }
+  .voice-extra label{ font-size:14px; color:#5b7285; display:block; margin-bottom:6px; }
+  select{
+    width:100%;
+    padding:10px 12px;
+    border-radius:12px;
+    border:2px solid var(--border);
+    font-size:16px;
+    background:#fff;
+    color:var(--ink);
+    font-family:inherit;
+  }
+
+  /* Text area */
+  textarea{
+    width:100%;
+    min-height:180px;
+    border-radius:16px;
+    border:2px solid var(--border);
+    padding:16px;
+    font-size:19px;
+    line-height:1.6;
+    font-family:inherit;
+    resize:vertical;
+    color:var(--ink);
+  }
+  textarea:focus{ outline:3px solid var(--accent); border-color:var(--accent); }
+
+  .toolbar{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    margin-top:12px;
+    align-items:center;
+  }
+  .chip{
+    padding:8px 14px;
+    border-radius:999px;
+    border:2px solid var(--border);
+    background:var(--soft);
+    font-size:14px;
+    cursor:pointer;
+    color:var(--ink);
+    font-family:inherit;
+  }
+  .chip:hover{ background:#e4edf5; }
+  .spacer{ flex:1; }
+
+  /* Reading view */
+  .reading-view{
+    display:none;
+    font-size:var(--read-size,26px);
+    line-height:1.9;
+    padding:20px;
+    border-radius:16px;
+    background:var(--soft);
+    min-height:180px;
+  }
+  .reading-view.active{ display:block; }
+  .reading-view .sentence{ transition:background .15s ease; border-radius:6px; padding:0 2px; }
+  .reading-view .sentence.current{ background:var(--highlight-sentence); }
+  .reading-view .word.current{ background:var(--highlight-word); border-radius:4px; padding:0 2px; }
+
+  textarea.hidden{ display:none; }
+
+  /* Controls */
+  .controls{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    flex-wrap:wrap;
+    margin-top:18px;
+  }
+  .big-btn{
+    width:64px; height:64px;
+    border-radius:50%;
+    border:none;
+    background:var(--accent);
+    color:#fff;
+    font-size:26px;
+    cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:0 6px 14px rgba(90,169,230,.4);
+    transition:transform .1s ease;
+  }
+  .big-btn:hover{ transform:scale(1.06); }
+  .big-btn:active{ transform:scale(.95); }
+  .big-btn.secondary{ background:var(--accent2); box-shadow:0 6px 14px rgba(255,158,109,.4); width:52px; height:52px; font-size:20px; }
+  .big-btn:disabled{ background:#c8d3db; box-shadow:none; cursor:not-allowed; }
+
+  .speed-block{ flex:1 1 260px; min-width:220px; }
+  .speed-block label{ font-size:14px; color:#5b7285; display:flex; justify-content:space-between; }
+  input[type=range]{ width:100%; accent-color:var(--accent-dark); }
+  .speed-presets{ display:flex; gap:6px; margin-top:6px; }
+  .speed-presets button{
+    flex:1;
+    padding:6px 4px;
+    font-size:13px;
+    border-radius:10px;
+    border:2px solid var(--border);
+    background:#fff;
+    cursor:pointer;
+    font-family:inherit;
+    color:var(--ink);
+  }
+  .speed-presets button.active{ background:var(--accent); border-color:var(--accent-dark); color:#fff; }
+
+  .status{
+    text-align:center;
+    font-size:14px;
+    color:#5b7285;
+    margin-top:10px;
+    min-height:18px;
+  }
+
+  /* Scan / photo */
+  .section-title{ margin:0 0 4px; font-size:19px; color:var(--accent2-dark); }
+  .hint{ margin:0 0 14px; font-size:14px; color:#5b7285; }
+  .scan-row{ display:flex; gap:14px; flex-wrap:wrap; }
+  .scan-btn{
+    flex:1 1 160px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+    padding:16px;
+    border-radius:16px;
+    border:3px solid var(--border);
+    background:var(--soft);
+    font-size:17px;
+    font-weight:bold;
+    cursor:pointer;
+    text-align:center;
+    color:var(--ink);
+    transition:transform .12s ease, border-color .12s ease;
+  }
+  .scan-btn:hover{ transform:translateY(-2px); border-color:var(--accent2); }
+  .scan-preview{
+    margin-top:14px;
+    display:flex;
+    align-items:center;
+    gap:14px;
+    flex-wrap:wrap;
+    background:var(--soft);
+    border-radius:16px;
+    padding:12px;
+  }
+  .scan-preview img{ max-height:140px; max-width:100%; border-radius:10px; display:block; }
+  .ocr-progress{ margin-top:12px; }
+  .ocr-bar{
+    height:12px;
+    border-radius:999px;
+    background:var(--soft);
+    overflow:hidden;
+    border:2px solid var(--border);
+  }
+  .ocr-bar-fill{
+    height:100%;
+    width:0%;
+    background:linear-gradient(90deg,var(--accent2),var(--accent2-dark));
+    transition:width .2s ease;
+  }
+
+  footer{ text-align:center; font-size:13px; color:#8098ac; margin-top:10px; }
+
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg1:#182231; --bg2:#1f2a3d; --card:#232f42; --ink:#e9f0f7;
+      --soft:#1b2636; --border:#31435c; --highlight-sentence:#204a5c; --highlight-word:#8a5a12;
+    }
+    select, textarea{ background:#1b2636; color:var(--ink); }
+    .speed-presets button{ background:#1b2636; color:var(--ink); }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <svg class="owl-badge" viewBox="0 0 120 120" width="72" height="72" aria-hidden="true">
+      <circle cx="60" cy="60" r="56" fill="#7ac142"/>
+      <path d="M60 14c-23 0-38 16-38 40 0 26 17 44 38 44s38-18 38-44c0-24-15-40-38-40z" fill="#2ea8da"/>
+      <circle cx="42" cy="58" r="17" fill="#ffffff"/>
+      <circle cx="78" cy="58" r="17" fill="#ffffff"/>
+      <circle cx="42" cy="58" r="9" fill="#2c3e50"/>
+      <circle cx="78" cy="58" r="9" fill="#2c3e50"/>
+      <circle cx="39" cy="55" r="2.5" fill="#ffffff"/>
+      <circle cx="75" cy="55" r="2.5" fill="#ffffff"/>
+      <path d="M60 62l-10 14h20z" fill="#f4901e"/>
+      <path d="M46 84c5 5 23 5 28 0" stroke="#2c3e50" stroke-width="3" fill="none" stroke-linecap="round"/>
+    </svg>
+    <h1>Voorleeshulp</h1>
+    <p>Speciaal voor de kinderen van basisschool De Kerkuil — plak of typ een tekst, kies een stem en luister lekker rustig mee.</p>
+  </header>
+
+  <div class="card">
+    <div class="voice-row">
+      <button class="voice-btn girl" id="btnGirl" type="button">
+        <span class="emoji">👩</span> Vrouwenstem
+      </button>
+      <button class="voice-btn boy" id="btnBoy" type="button">
+        <span class="emoji">👨</span> Mannenstem
+      </button>
+    </div>
+    <div class="voice-extra">
+      <label for="voiceSelect">Andere stem kiezen (optioneel)</label>
+      <select id="voiceSelect"></select>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 class="section-title">📷 Tekst van een foto of scan</h2>
+    <p class="hint">Maak een foto van een bladzijde of kies een bestaande foto/scan. Werkt het beste bij duidelijke, gedrukte tekst.</p>
+    <div class="scan-row">
+      <label class="scan-btn" for="cameraInput">📷 Foto maken</label>
+      <input type="file" id="cameraInput" accept="image/*" capture="environment" hidden>
+      <label class="scan-btn" for="fileInput">🖼️ Bestand kiezen</label>
+      <input type="file" id="fileInput" accept="image/*" hidden>
+    </div>
+    <div class="scan-preview" id="scanPreview" style="display:none;">
+      <img id="scanImg" alt="Gekozen foto">
+      <button type="button" id="btnRemoveScan" class="chip">✖ Verwijderen</button>
+    </div>
+    <div class="ocr-progress" id="ocrProgressWrap" style="display:none;">
+      <div class="ocr-bar"><div class="ocr-bar-fill" id="ocrBarFill"></div></div>
+    </div>
+    <div class="status" id="ocrStatus"></div>
+  </div>
+
+  <div class="card">
+    <textarea id="textInput" placeholder="Plak hier je tekst, bijvoorbeeld een stukje uit een boek of een opdracht voor school...">Er was eens een klein konijntje dat Timo heette. Timo woonde in een knus holletje onder een grote eikenboom. Elke ochtend, als de zon opkwam, ging hij naar buiten om verse klaver te zoeken. Op een dag ontmoette hij een egeltje dat verdwaald was. Timo besloot om het egeltje te helpen de weg terug naar huis te vinden.</textarea>
+    <div class="reading-view" id="readingView"></div>
+
+    <div class="toolbar">
+      <button class="chip" id="btnSample" type="button">✨ Voorbeeldtekst</button>
+      <button class="chip" id="btnClear" type="button">🗑️ Wissen</button>
+      <button class="chip" id="btnFontSize">🔎 Grotere letters</button>
+      <button class="chip" id="btnFont">🔤 Kindvriendelijk lettertype: aan</button>
+      <div class="spacer"></div>
+      <button class="chip" id="btnEdit" style="display:none;">✏️ Terug naar bewerken</button>
+    </div>
+
+    <div class="controls">
+      <button class="big-btn" id="btnPlay" title="Afspelen">▶️</button>
+      <button class="big-btn secondary" id="btnPause" title="Pauzeren" disabled>⏸️</button>
+      <button class="big-btn secondary" id="btnStop" title="Stoppen" disabled>⏹️</button>
+      <button class="big-btn secondary" id="btnRestart" title="Opnieuw" disabled>🔄</button>
+
+      <div class="speed-block">
+        <label>Leessnelheid <span id="rateLabel">Rustig</span></label>
+        <input type="range" id="rateSlider" min="0.5" max="1.4" step="0.05" value="0.8">
+        <div class="speed-presets">
+          <button data-rate="0.65" type="button">🐢 Heel rustig</button>
+          <button data-rate="0.8" class="active" type="button">🙂 Rustig</button>
+          <button data-rate="1.0" type="button">🚶 Normaal</button>
+          <button data-rate="1.2" type="button">🐇 Vlot</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="status" id="status"></div>
+  </div>
+
+  <footer>Deze app gebruikt de spraakstem van je eigen apparaat — er wordt niets naar internet gestuurd.</footer>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script>
+(function(){
+  const textInput = document.getElementById('textInput');
+  const readingView = document.getElementById('readingView');
+  const voiceSelect = document.getElementById('voiceSelect');
+  const btnGirl = document.getElementById('btnGirl');
+  const btnBoy = document.getElementById('btnBoy');
+  const btnPlay = document.getElementById('btnPlay');
+  const btnPause = document.getElementById('btnPause');
+  const btnStop = document.getElementById('btnStop');
+  const btnRestart = document.getElementById('btnRestart');
+  const btnEdit = document.getElementById('btnEdit');
+  const btnSample = document.getElementById('btnSample');
+  const btnClear = document.getElementById('btnClear');
+  const btnFontSize = document.getElementById('btnFontSize');
+  const btnFont = document.getElementById('btnFont');
+  const rateSlider = document.getElementById('rateSlider');
+  const rateLabel = document.getElementById('rateLabel');
+  const speedPresets = document.querySelectorAll('.speed-presets button');
+  const status = document.getElementById('status');
+
+  const SAMPLE = textInput.value;
+
+  let voices = [];
+  let genderPref = localStorage.getItem('vh_gender') || 'girl';
+  let chosenVoiceName = localStorage.getItem('vh_voiceName') || '';
+  let readSize = parseInt(localStorage.getItem('vh_readSize') || '26', 10);
+  let kidFont = localStorage.getItem('vh_kidFont') !== 'off';
+
+  document.documentElement.style.setProperty('--read-size', readSize + 'px');
+  document.body.classList.toggle('font-normal', !kidFont);
+  btnFont.textContent = '🔤 Kindvriendelijk lettertype: ' + (kidFont ? 'aan' : 'uit');
+
+  const FEMALE_HINTS = ['vrouw','female','fenna','claire','lotte','sophie','samantha','victoria','karen','xenia','anna','ellen','laura','amelie','zosia','marie','lucia','nora','ioana','joana','daria','tina','sara','laila','moira','tessa','monica','paulina','milena'];
+  const MALE_HINTS = ['man','male','xander','frank','bart','ruben','daniel','arthur','fred','tom','alex','diego','luca','felix','thomas','jacques','ralph','albert','rishi','junior'];
+  // Auto-detected voices can't always be told apart by gender; pitch keeps the two knoppen audibly different even on devices with just one Dutch stem.
+  const GENDER_PITCH = { girl: 1.15, boy: 0.85 };
+
+  function guessGender(voice){
+    const n = voice.name.toLowerCase();
+    if (FEMALE_HINTS.some(h => n.includes(h))) return 'girl';
+    if (MALE_HINTS.some(h => n.includes(h))) return 'boy';
+    return null;
+  }
+
+  function scoreVoice(v){
+    let s = 0;
+    if (v.lang && v.lang.toLowerCase().startsWith('nl')) s += 10;
+    if (v.localService) s += 2;
+    return s;
+  }
+
+  function loadVoices(){
+    voices = speechSynthesis.getVoices();
+    if (!voices.length) return;
+    populateVoiceSelect();
+    autoAssignGenderVoices();
+    applyGenderSelection();
+  }
+
+  let girlVoice = null, boyVoice = null;
+
+  function autoAssignGenderVoices(){
+    const dutch = voices.filter(v => v.lang.toLowerCase().startsWith('nl'));
+    const pool = dutch.length ? dutch : voices;
+
+    const girls = pool.filter(v => guessGender(v) === 'girl').sort((a,b)=>scoreVoice(b)-scoreVoice(a));
+    const boys = pool.filter(v => guessGender(v) === 'boy').sort((a,b)=>scoreVoice(b)-scoreVoice(a));
+
+    girlVoice = girls[0] || null;
+    boyVoice = boys[0] || null;
+
+    if (!girlVoice) girlVoice = pool.find(v => v !== boyVoice) || pool[0] || voices[0];
+    if (!boyVoice) boyVoice = pool.find(v => v !== girlVoice) || pool[0] || voices[0];
+
+    if (girlVoice === boyVoice) {
+      const alt = pool.find(v => v !== girlVoice) || voices.find(v => v !== girlVoice);
+      if (alt) boyVoice = alt;
+    }
+  }
+
+  function populateVoiceSelect(){
+    voiceSelect.innerHTML = '';
+    const sorted = [...voices].sort((a,b)=>scoreVoice(b)-scoreVoice(a));
+    sorted.forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = v.name;
+      opt.textContent = v.name + ' (' + v.lang + ')';
+      voiceSelect.appendChild(opt);
+    });
+    if (chosenVoiceName && sorted.some(v => v.name === chosenVoiceName)) {
+      voiceSelect.value = chosenVoiceName;
+    }
+  }
+
+  function applyGenderSelection(){
+    btnGirl.classList.toggle('active', genderPref === 'girl');
+    btnBoy.classList.toggle('active', genderPref === 'boy');
+    const preset = genderPref === 'girl' ? girlVoice : boyVoice;
+    if (preset && !chosenVoiceName) {
+      voiceSelect.value = preset.name;
+    }
+  }
+
+  function getSelectedVoice(){
+    const name = voiceSelect.value;
+    return voices.find(v => v.name === name) || (genderPref === 'girl' ? girlVoice : boyVoice) || voices[0];
+  }
+
+  btnGirl.addEventListener('click', () => {
+    genderPref = 'girl';
+    chosenVoiceName = '';
+    localStorage.setItem('vh_gender','girl');
+    localStorage.removeItem('vh_voiceName');
+    applyGenderSelection();
+  });
+  btnBoy.addEventListener('click', () => {
+    genderPref = 'boy';
+    chosenVoiceName = '';
+    localStorage.setItem('vh_gender','boy');
+    localStorage.removeItem('vh_voiceName');
+    applyGenderSelection();
+  });
+  voiceSelect.addEventListener('change', () => {
+    chosenVoiceName = voiceSelect.value;
+    localStorage.setItem('vh_voiceName', chosenVoiceName);
+  });
+
+  speechSynthesis.addEventListener('voiceschanged', loadVoices);
+  loadVoices();
+
+  // ---- Speed ----
+  function rateText(r){
+    if (r <= 0.7) return 'Heel rustig';
+    if (r <= 0.9) return 'Rustig';
+    if (r <= 1.05) return 'Normaal';
+    return 'Vlot';
+  }
+  function setRate(r){
+    rateSlider.value = r;
+    rateLabel.textContent = rateText(parseFloat(r));
+    speedPresets.forEach(b => b.classList.toggle('active', Math.abs(parseFloat(b.dataset.rate) - parseFloat(r)) < 0.001));
+    localStorage.setItem('vh_rate', r);
+  }
+  const savedRate = localStorage.getItem('vh_rate');
+  setRate(savedRate ? parseFloat(savedRate) : 0.8);
+
+  rateSlider.addEventListener('input', () => setRate(parseFloat(rateSlider.value)));
+  speedPresets.forEach(btn => {
+    btn.addEventListener('click', () => setRate(parseFloat(btn.dataset.rate)));
+  });
+
+  // ---- Text tools ----
+  btnSample.addEventListener('click', () => { textInput.value = SAMPLE; });
+  btnClear.addEventListener('click', () => { textInput.value = ''; textInput.focus(); });
+  btnFontSize.addEventListener('click', () => {
+    readSize = readSize >= 34 ? 22 : readSize + 4;
+    document.documentElement.style.setProperty('--read-size', readSize + 'px');
+    localStorage.setItem('vh_readSize', readSize);
+  });
+  btnFont.addEventListener('click', () => {
+    kidFont = !kidFont;
+    document.body.classList.toggle('font-normal', !kidFont);
+    btnFont.textContent = '🔤 Kindvriendelijk lettertype: ' + (kidFont ? 'aan' : 'uit');
+    localStorage.setItem('vh_kidFont', kidFont ? 'on' : 'off');
+  });
+
+  // ---- Reading engine ----
+  let sentenceEls = []; // { el, words: [{el, start, end}], text }
+  let queue = [];
+  let currentIndex = -1;
+  let isPaused = false;
+  let isPlaying = false;
+
+  function splitSentences(text){
+    const trimmed = text.trim();
+    if (!trimmed) return [];
+    const matches = trimmed.match(/[^.!?\n]+[.!?]*(\n+|$)/g) || [trimmed];
+    return matches.map(s => s.trim()).filter(Boolean);
+  }
+
+  function buildReadingView(){
+    const sentences = splitSentences(textInput.value);
+    readingView.innerHTML = '';
+    sentenceEls = [];
+    sentences.forEach(sentText => {
+      const sEl = document.createElement('span');
+      sEl.className = 'sentence';
+      const words = sentText.split(/(\s+)/);
+      const wordData = [];
+      let offset = 0;
+      words.forEach(chunk => {
+        if (chunk.trim() === '') {
+          sEl.appendChild(document.createTextNode(chunk));
+        } else {
+          const wEl = document.createElement('span');
+          wEl.className = 'word';
+          wEl.textContent = chunk;
+          sEl.appendChild(wEl);
+          wordData.push({ el: wEl, start: offset, end: offset + chunk.length });
+        }
+        offset += chunk.length;
+      });
+      sEl.appendChild(document.createTextNode(' '));
+      readingView.appendChild(sEl);
+      sentenceEls.push({ el: sEl, words: wordData, text: sentText });
+    });
+    return sentences;
+  }
+
+  function clearHighlights(){
+    sentenceEls.forEach(s => {
+      s.el.classList.remove('current');
+      s.words.forEach(w => w.el.classList.remove('current'));
+    });
+  }
+
+  function setStatus(msg){ status.textContent = msg; }
+
+  function enterReadingMode(){
+    textInput.classList.add('hidden');
+    readingView.classList.add('active');
+    btnEdit.style.display = '';
+  }
+  function exitReadingMode(){
+    textInput.classList.remove('hidden');
+    readingView.classList.remove('active');
+    btnEdit.style.display = 'none';
+  }
+
+  function speakSentence(i){
+    if (i >= sentenceEls.length) {
+      finishPlayback();
+      return;
+    }
+    currentIndex = i;
+    clearHighlights();
+    const s = sentenceEls[i];
+    s.el.classList.add('current');
+    s.el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+
+    const utter = new SpeechSynthesisUtterance(s.text);
+    const voice = getSelectedVoice();
+    if (voice) utter.voice = voice;
+    utter.rate = parseFloat(rateSlider.value);
+    utter.pitch = GENDER_PITCH[genderPref] || 1.0;
+    utter.lang = (voice && voice.lang) || 'nl-NL';
+
+    utter.onboundary = (e) => {
+      if (e.name !== 'word' && e.charIndex === undefined) return;
+      const word = s.words.find(w => e.charIndex >= w.start && e.charIndex < w.end) ||
+                   s.words.find(w => e.charIndex <= w.start);
+      s.words.forEach(w => w.el.classList.remove('current'));
+      if (word) word.el.classList.add('current');
+    };
+
+    utter.onend = () => {
+      if (!isPlaying) return;
+      setTimeout(() => { if (isPlaying) speakSentence(i + 1); }, 260);
+    };
+    utter.onerror = () => {
+      if (isPlaying) setTimeout(() => speakSentence(i + 1), 100);
+    };
+
+    speechSynthesis.speak(utter);
+  }
+
+  function startPlayback(fromIndex){
+    if (!('speechSynthesis' in window)) {
+      setStatus('Sorry, deze browser ondersteunt geen voorlezen.');
+      return;
+    }
+    if (!sentenceEls.length || fromIndex === 0) {
+      const sentences = buildReadingView();
+      if (!sentences.length) {
+        setStatus('Typ of plak eerst een tekstje om voor te lezen.');
+        return;
+      }
+    }
+    enterReadingMode();
+    isPlaying = true;
+    isPaused = false;
+    btnPlay.disabled = true;
+    btnPause.disabled = false;
+    btnStop.disabled = false;
+    btnRestart.disabled = false;
+    setStatus('Bezig met voorlezen...');
+    speakSentence(fromIndex || 0);
+  }
+
+  function finishPlayback(){
+    isPlaying = false;
+    isPaused = false;
+    clearHighlights();
+    btnPlay.disabled = false;
+    btnPause.disabled = true;
+    btnStop.disabled = true;
+    setStatus('Klaar! ✅');
+  }
+
+  function stopPlayback(){
+    isPlaying = false;
+    isPaused = false;
+    speechSynthesis.cancel();
+    clearHighlights();
+    currentIndex = -1;
+    btnPlay.disabled = false;
+    btnPause.disabled = true;
+    btnStop.disabled = true;
+    setStatus('Gestopt.');
+  }
+
+  btnPlay.addEventListener('click', () => {
+    if (isPaused) {
+      isPaused = false;
+      isPlaying = true;
+      speechSynthesis.resume();
+      btnPlay.disabled = true;
+      btnPause.disabled = false;
+      setStatus('Bezig met voorlezen...');
+    } else {
+      startPlayback(0);
+    }
+  });
+
+  btnPause.addEventListener('click', () => {
+    if (!isPlaying) return;
+    isPaused = true;
+    isPlaying = false;
+    speechSynthesis.pause();
+    btnPlay.disabled = false;
+    btnPause.disabled = true;
+    setStatus('Gepauzeerd.');
+  });
+
+  btnStop.addEventListener('click', stopPlayback);
+
+  btnRestart.addEventListener('click', () => {
+    speechSynthesis.cancel();
+    isPaused = false;
+    startPlayback(0);
+  });
+
+  btnEdit.addEventListener('click', () => {
+    speechSynthesis.cancel();
+    isPlaying = false;
+    isPaused = false;
+    exitReadingMode();
+    btnPlay.disabled = false;
+    btnPause.disabled = true;
+    btnStop.disabled = true;
+    btnRestart.disabled = true;
+    setStatus('');
+  });
+
+  textInput.addEventListener('input', () => {
+    sentenceEls = [];
+    currentIndex = -1;
+  });
+
+  // ---- Photo / scan (OCR) ----
+  const cameraInput = document.getElementById('cameraInput');
+  const fileInput = document.getElementById('fileInput');
+  const scanPreview = document.getElementById('scanPreview');
+  const scanImg = document.getElementById('scanImg');
+  const btnRemoveScan = document.getElementById('btnRemoveScan');
+  const ocrProgressWrap = document.getElementById('ocrProgressWrap');
+  const ocrBarFill = document.getElementById('ocrBarFill');
+  const ocrStatus = document.getElementById('ocrStatus');
+
+  let ocrBusy = false;
+  let scanImgUrl = null;
+
+  const OCR_STATUS_LABELS = {
+    'loading tesseract core': 'Tekstherkenning laden...',
+    'initializing tesseract': 'Even opstarten...',
+    'loading language traineddata': 'Nederlands woordenboek laden...',
+    'initializing api': 'Bijna klaar om te lezen...',
+    'recognizing text': 'Tekst herkennen...'
+  };
+
+  function setOcrStatus(msg, progress, isError){
+    ocrStatus.textContent = msg || '';
+    ocrStatus.style.color = isError ? '#d0554b' : '';
+    if (progress === undefined || progress === null) {
+      ocrProgressWrap.style.display = 'none';
+    } else {
+      ocrProgressWrap.style.display = '';
+      ocrBarFill.style.width = Math.round(progress * 100) + '%';
+    }
+  }
+
+  function setScanControlsDisabled(disabled){
+    cameraInput.disabled = disabled;
+    fileInput.disabled = disabled;
+    btnRemoveScan.disabled = disabled;
+  }
+
+  function showPreview(file){
+    if (scanImgUrl) URL.revokeObjectURL(scanImgUrl);
+    scanImgUrl = URL.createObjectURL(file);
+    scanImg.src = scanImgUrl;
+    scanPreview.style.display = '';
+  }
+
+  function clearScan(){
+    if (scanImgUrl) { URL.revokeObjectURL(scanImgUrl); scanImgUrl = null; }
+    scanImg.src = '';
+    scanPreview.style.display = 'none';
+    cameraInput.value = '';
+    fileInput.value = '';
+    setOcrStatus('', null);
+  }
+
+  function resizeImageIfNeeded(file){
+    return new Promise((resolve) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        const maxDim = 1800;
+        const { width, height } = img;
+        if (Math.max(width, height) <= maxDim) {
+          URL.revokeObjectURL(url);
+          resolve(file);
+          return;
+        }
+        const scale = maxDim / Math.max(width, height);
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(width * scale);
+        canvas.height = Math.round(height * scale);
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob((blob) => {
+          URL.revokeObjectURL(url);
+          resolve(blob || file);
+        }, 'image/jpeg', 0.92);
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+      img.src = url;
+    });
+  }
+
+  async function runOCR(file){
+    if (ocrBusy) return;
+    if (typeof Tesseract === 'undefined') {
+      setOcrStatus('Tekstherkenning kon niet laden. Controleer je internetverbinding en probeer opnieuw.', null, true);
+      return;
+    }
+    ocrBusy = true;
+    setScanControlsDisabled(true);
+    showPreview(file);
+    setOcrStatus('Voorbereiden...', 0);
+    try {
+      const processed = await resizeImageIfNeeded(file);
+      const result = await Tesseract.recognize(processed, 'nld', {
+        logger: (m) => {
+          const label = OCR_STATUS_LABELS[m.status] || 'Bezig...';
+          setOcrStatus(label, typeof m.progress === 'number' ? m.progress : 0);
+        }
+      });
+      const text = (result.data.text || '').trim();
+      if (!text) {
+        setOcrStatus('Geen tekst gevonden. Probeer een duidelijkere of scherpere foto.', null, true);
+      } else {
+        speechSynthesis.cancel();
+        isPlaying = false; isPaused = false;
+        exitReadingMode();
+        btnPlay.disabled = false; btnPause.disabled = true; btnStop.disabled = true; btnRestart.disabled = true;
+        textInput.value = text;
+        sentenceEls = []; currentIndex = -1;
+        setOcrStatus('Tekst gevonden! Controleer de tekst hierboven en klik daarna op ▶️ Afspelen.', null);
+        textInput.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
+    } catch (err) {
+      setOcrStatus('Kon de tekst niet herkennen. Controleer je internetverbinding en probeer opnieuw.', null, true);
+    } finally {
+      ocrBusy = false;
+      setScanControlsDisabled(false);
+    }
+  }
+
+  cameraInput.addEventListener('change', () => {
+    const file = cameraInput.files && cameraInput.files[0];
+    if (file) runOCR(file);
+  });
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files && fileInput.files[0];
+    if (file) runOCR(file);
+  });
+  btnRemoveScan.addEventListener('click', clearScan);
+})();
+</script>
+</body>
+</html>
