@@ -80,19 +80,6 @@
   .voice-btn.girl.active{ border-color:var(--girl); background:#ffe9f0; color:var(--girl-dark); }
   .voice-btn.boy.active{ border-color:var(--boy); background:#e7f2fd; color:var(--boy-dark); }
 
-  .voice-extra{ margin-top:14px; }
-  .voice-extra label{ font-size:14px; color:#5b7285; display:block; margin-bottom:6px; }
-  select{
-    width:100%;
-    padding:10px 12px;
-    border-radius:12px;
-    border:2px solid var(--border);
-    font-size:16px;
-    background:#fff;
-    color:var(--ink);
-    font-family:inherit;
-  }
-
   /* Text area */
   textarea{
     width:100%;
@@ -243,6 +230,55 @@
     transition:width .2s ease;
   }
 
+  /* Saved texts */
+  .save-row{ display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
+  .save-row input[type=text]{
+    flex:1 1 200px;
+    padding:10px 12px;
+    border-radius:12px;
+    border:2px solid var(--border);
+    font-size:15px;
+    font-family:inherit;
+    color:var(--ink);
+  }
+  .saved-list{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; }
+  .saved-empty{ color:#5b7285; font-size:14px; padding:6px 2px; }
+  .saved-item{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    background:var(--soft);
+    border-radius:12px;
+    padding:10px 12px;
+  }
+  .saved-item .name{
+    flex:1;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+    cursor:pointer;
+    font-weight:bold;
+    background:none;
+    border:none;
+    text-align:left;
+    font-family:inherit;
+    font-size:15px;
+    color:var(--ink);
+    padding:0;
+  }
+  .saved-item .name:hover{ text-decoration:underline; }
+  .saved-item .del{
+    border:none;
+    background:transparent;
+    cursor:pointer;
+    font-size:16px;
+    padding:4px 8px;
+    border-radius:8px;
+    color:#5b7285;
+    flex-shrink:0;
+  }
+  .saved-item .del:hover{ background:#e4edf5; }
+
   footer{ text-align:center; font-size:13px; color:#8098ac; margin-top:10px; }
 
   @media (prefers-color-scheme: dark){
@@ -250,7 +286,7 @@
       --bg1:#182231; --bg2:#1f2a3d; --card:#232f42; --ink:#e9f0f7;
       --soft:#1b2636; --border:#31435c; --highlight-sentence:#204a5c; --highlight-word:#8a5a12;
     }
-    select, textarea{ background:#1b2636; color:var(--ink); }
+    textarea{ background:#1b2636; color:var(--ink); }
     .speed-presets button{ background:#1b2636; color:var(--ink); }
   }
 </style>
@@ -282,10 +318,6 @@
       <button class="voice-btn boy" id="btnBoy" type="button">
         <span class="emoji">👨</span> Mannenstem
       </button>
-    </div>
-    <div class="voice-extra">
-      <label for="voiceSelect">Andere stem kiezen (optioneel)</label>
-      <select id="voiceSelect"></select>
     </div>
   </div>
 
@@ -342,6 +374,17 @@
     <div class="status" id="status"></div>
   </div>
 
+  <div class="card">
+    <h2 class="section-title">💾 Bewaarde teksten</h2>
+    <p class="hint">Bewaar deze tekst om 'm later snel terug te vinden (max. 20).</p>
+    <div class="save-row">
+      <input type="text" id="saveNameInput" placeholder="Naam voor deze tekst (optioneel)" maxlength="40">
+      <button type="button" id="btnSaveText" class="chip">💾 Bewaar deze tekst</button>
+    </div>
+    <ul class="saved-list" id="savedList"></ul>
+    <div class="status" id="savedStatus"></div>
+  </div>
+
   <footer>Deze app gebruikt de spraakstem van je eigen apparaat — er wordt niets naar internet gestuurd.</footer>
 </div>
 
@@ -350,7 +393,6 @@
 (function(){
   const textInput = document.getElementById('textInput');
   const readingView = document.getElementById('readingView');
-  const voiceSelect = document.getElementById('voiceSelect');
   const btnGirl = document.getElementById('btnGirl');
   const btnBoy = document.getElementById('btnBoy');
   const btnPlay = document.getElementById('btnPlay');
@@ -371,7 +413,6 @@
 
   let voices = [];
   let genderPref = localStorage.getItem('vh_gender') || 'girl';
-  let chosenVoiceName = localStorage.getItem('vh_voiceName') || '';
   let readSize = parseInt(localStorage.getItem('vh_readSize') || '26', 10);
   let kidFont = localStorage.getItem('vh_kidFont') !== 'off';
 
@@ -401,16 +442,20 @@
   function loadVoices(){
     voices = speechSynthesis.getVoices();
     if (!voices.length) return;
-    populateVoiceSelect();
     autoAssignGenderVoices();
     applyGenderSelection();
   }
 
   let girlVoice = null, boyVoice = null;
 
-  function autoAssignGenderVoices(){
+  function getDutchVoicePool(){
+    // Alleen Nederlandse stemmen; als een apparaat er geen enkele heeft, vallen we terug op alles zodat de app blijft werken.
     const dutch = voices.filter(v => v.lang.toLowerCase().startsWith('nl'));
-    const pool = dutch.length ? dutch : voices;
+    return dutch.length ? dutch : voices;
+  }
+
+  function autoAssignGenderVoices(){
+    const pool = getDutchVoicePool();
 
     const girls = pool.filter(v => guessGender(v) === 'girl').sort((a,b)=>scoreVoice(b)-scoreVoice(a));
     const boys = pool.filter(v => guessGender(v) === 'boy').sort((a,b)=>scoreVoice(b)-scoreVoice(a));
@@ -427,51 +472,24 @@
     }
   }
 
-  function populateVoiceSelect(){
-    voiceSelect.innerHTML = '';
-    const sorted = [...voices].sort((a,b)=>scoreVoice(b)-scoreVoice(a));
-    sorted.forEach(v => {
-      const opt = document.createElement('option');
-      opt.value = v.name;
-      opt.textContent = v.name + ' (' + v.lang + ')';
-      voiceSelect.appendChild(opt);
-    });
-    if (chosenVoiceName && sorted.some(v => v.name === chosenVoiceName)) {
-      voiceSelect.value = chosenVoiceName;
-    }
-  }
-
   function applyGenderSelection(){
     btnGirl.classList.toggle('active', genderPref === 'girl');
     btnBoy.classList.toggle('active', genderPref === 'boy');
-    const preset = genderPref === 'girl' ? girlVoice : boyVoice;
-    if (preset && !chosenVoiceName) {
-      voiceSelect.value = preset.name;
-    }
   }
 
   function getSelectedVoice(){
-    const name = voiceSelect.value;
-    return voices.find(v => v.name === name) || (genderPref === 'girl' ? girlVoice : boyVoice) || voices[0];
+    return (genderPref === 'girl' ? girlVoice : boyVoice) || voices[0];
   }
 
   btnGirl.addEventListener('click', () => {
     genderPref = 'girl';
-    chosenVoiceName = '';
     localStorage.setItem('vh_gender','girl');
-    localStorage.removeItem('vh_voiceName');
     applyGenderSelection();
   });
   btnBoy.addEventListener('click', () => {
     genderPref = 'boy';
-    chosenVoiceName = '';
     localStorage.setItem('vh_gender','boy');
-    localStorage.removeItem('vh_voiceName');
     applyGenderSelection();
-  });
-  voiceSelect.addEventListener('change', () => {
-    chosenVoiceName = voiceSelect.value;
-    localStorage.setItem('vh_voiceName', chosenVoiceName);
   });
 
   speechSynthesis.addEventListener('voiceschanged', loadVoices);
@@ -500,7 +518,22 @@
 
   // ---- Text tools ----
   btnSample.addEventListener('click', () => { textInput.value = SAMPLE; });
-  btnClear.addEventListener('click', () => { textInput.value = ''; textInput.focus(); });
+  btnClear.addEventListener('click', () => {
+    speechSynthesis.cancel();
+    isPlaying = false;
+    isPaused = false;
+    exitReadingMode();
+    readingView.innerHTML = '';
+    sentenceEls = [];
+    currentIndex = -1;
+    textInput.value = '';
+    textInput.focus();
+    btnPlay.disabled = false;
+    btnPause.disabled = true;
+    btnStop.disabled = true;
+    btnRestart.disabled = true;
+    setStatus('');
+  });
   btnFontSize.addEventListener('click', () => {
     readSize = readSize >= 34 ? 22 : readSize + 4;
     document.documentElement.style.setProperty('--read-size', readSize + 'px');
@@ -836,6 +869,105 @@
     if (file) runOCR(file);
   });
   btnRemoveScan.addEventListener('click', clearScan);
+
+  // ---- Bewaarde teksten (max 20, lokaal op dit apparaat) ----
+  const MAX_SAVED = 20;
+  const saveNameInput = document.getElementById('saveNameInput');
+  const btnSaveText = document.getElementById('btnSaveText');
+  const savedList = document.getElementById('savedList');
+  const savedStatus = document.getElementById('savedStatus');
+
+  function loadSavedTexts(){
+    try {
+      return JSON.parse(localStorage.getItem('vh_savedTexts') || '[]');
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function persistSavedTexts(items){
+    localStorage.setItem('vh_savedTexts', JSON.stringify(items));
+  }
+
+  function openSavedText(id){
+    const item = loadSavedTexts().find(i => i.id === id);
+    if (!item) return;
+    speechSynthesis.cancel();
+    isPlaying = false;
+    isPaused = false;
+    exitReadingMode();
+    readingView.innerHTML = '';
+    sentenceEls = [];
+    currentIndex = -1;
+    textInput.value = item.text;
+    btnPlay.disabled = false;
+    btnPause.disabled = true;
+    btnStop.disabled = true;
+    btnRestart.disabled = true;
+    setStatus('');
+    textInput.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }
+
+  function deleteSavedText(id){
+    persistSavedTexts(loadSavedTexts().filter(i => i.id !== id));
+    renderSavedList();
+  }
+
+  function renderSavedList(){
+    const items = loadSavedTexts();
+    savedList.innerHTML = '';
+    if (!items.length) {
+      const li = document.createElement('li');
+      li.className = 'saved-empty';
+      li.textContent = 'Nog geen teksten bewaard.';
+      savedList.appendChild(li);
+    } else {
+      items.forEach(item => {
+        const li = document.createElement('li');
+        li.className = 'saved-item';
+
+        const nameBtn = document.createElement('button');
+        nameBtn.type = 'button';
+        nameBtn.className = 'name';
+        nameBtn.textContent = item.name;
+        nameBtn.title = 'Klik om te openen';
+        nameBtn.addEventListener('click', () => openSavedText(item.id));
+
+        const delBtn = document.createElement('button');
+        delBtn.type = 'button';
+        delBtn.className = 'del';
+        delBtn.textContent = '✖';
+        delBtn.title = 'Verwijderen';
+        delBtn.addEventListener('click', () => deleteSavedText(item.id));
+
+        li.appendChild(nameBtn);
+        li.appendChild(delBtn);
+        savedList.appendChild(li);
+      });
+    }
+    savedStatus.textContent = items.length + ' / ' + MAX_SAVED + ' bewaard';
+  }
+
+  btnSaveText.addEventListener('click', () => {
+    const text = textInput.value.trim();
+    if (!text) {
+      savedStatus.textContent = 'Er is nog geen tekst om te bewaren.';
+      return;
+    }
+    const items = loadSavedTexts();
+    if (items.length >= MAX_SAVED) {
+      savedStatus.textContent = 'Je hebt al ' + MAX_SAVED + ' teksten bewaard. Verwijder er eerst een.';
+      return;
+    }
+    const name = saveNameInput.value.trim() || (text.slice(0, 28) + (text.length > 28 ? '…' : ''));
+    const id = Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+    items.push({ id, name, text });
+    persistSavedTexts(items);
+    saveNameInput.value = '';
+    renderSavedList();
+  });
+
+  renderSavedList();
 })();
 </script>
 </body>
