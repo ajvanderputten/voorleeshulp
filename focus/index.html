@@ -1,0 +1,597 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Focus — Pomodoro</title>
+<meta name="description" content="Rustige pomodoro-timer om gefocust te werken.">
+<meta name="theme-color" content="#14161f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Focus">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<style>
+  :root{
+    --bg:#14161f;
+    --surface:#1d202c;
+    --surface2:#262a38;
+    --ink:#eef0f6;
+    --muted:#8d93a8;
+    --line:#2f3444;
+    --focus:#ff6b5b;
+    --short:#4fd1a5;
+    --long:#6aa8ff;
+    --mode:var(--focus);
+    --radius:22px;
+    --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
+  }
+  body[data-mode="short"]{ --mode:var(--short); }
+  body[data-mode="long"]{ --mode:var(--long); }
+
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body{ height:100%; }
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:var(--font);
+    -webkit-font-smoothing:antialiased;
+    -webkit-user-select:none; user-select:none;
+    overscroll-behavior:none;
+    padding:
+      calc(env(safe-area-inset-top) + 12px)
+      calc(env(safe-area-inset-right) + 16px)
+      calc(env(safe-area-inset-bottom) + 16px)
+      calc(env(safe-area-inset-left) + 16px);
+    display:flex; justify-content:center;
+    transition:background-color .4s;
+  }
+  .app{ width:100%; max-width:440px; display:flex; flex-direction:column; min-height:100%; }
+
+  header{ display:flex; align-items:center; justify-content:space-between; height:44px; }
+  header h1{ font-size:20px; font-weight:700; margin:0; letter-spacing:.2px; }
+  header h1 span{ color:var(--mode); transition:color .4s; }
+  .icon-btn{
+    width:40px; height:40px; border-radius:50%;
+    border:0; background:var(--surface); color:var(--ink);
+    display:grid; place-items:center; cursor:pointer;
+  }
+  .icon-btn svg{ width:20px; height:20px; }
+
+  /* Mode tabs */
+  .tabs{
+    margin:14px 0 0; padding:4px; border-radius:14px; background:var(--surface);
+    display:grid; grid-template-columns:repeat(3,1fr); gap:4px;
+  }
+  .tabs button{
+    border:0; background:transparent; color:var(--muted);
+    font:600 14px/1 var(--font); padding:10px 4px; border-radius:10px; cursor:pointer;
+  }
+  .tabs button[aria-pressed="true"]{ background:var(--surface2); color:var(--ink); }
+
+  /* Timer ring */
+  .timer{ position:relative; width:min(78vw,320px); aspect-ratio:1; margin:28px auto 8px; }
+  .timer svg{ width:100%; height:100%; transform:rotate(-90deg); }
+  .timer .track{ stroke:var(--surface2); }
+  .timer .progress{ stroke:var(--mode); transition:stroke .4s; stroke-linecap:round; }
+  .timer .center{
+    position:absolute; inset:0; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:6px;
+  }
+  .time{
+    font-size:clamp(56px,19vw,76px); font-weight:300;
+    font-variant-numeric:tabular-nums; letter-spacing:-1px;
+  }
+  .label{ font-size:14px; color:var(--muted); text-transform:uppercase; letter-spacing:1.5px; }
+
+  .dots{ display:flex; justify-content:center; gap:8px; margin:6px 0 18px; }
+  .dots i{ width:9px; height:9px; border-radius:50%; background:var(--surface2); }
+  .dots i.done{ background:var(--focus); }
+
+  .task{
+    width:100%; border:1px solid var(--line); background:var(--surface);
+    color:var(--ink); border-radius:14px; padding:14px 16px;
+    font:16px var(--font); text-align:center; outline:none;
+    -webkit-user-select:text; user-select:text;
+  }
+  .task::placeholder{ color:var(--muted); }
+  .task:focus{ border-color:var(--mode); }
+
+  .controls{ display:flex; align-items:center; justify-content:center; gap:22px; margin:26px 0 10px; }
+  .play{
+    width:84px; height:84px; border-radius:50%; border:0; cursor:pointer;
+    background:var(--mode); color:#10121a; display:grid; place-items:center;
+    box-shadow:0 10px 30px color-mix(in srgb, var(--mode) 35%, transparent);
+    transition:background-color .4s, transform .1s;
+  }
+  .play:active{ transform:scale(.95); }
+  .play svg{ width:34px; height:34px; }
+  .side{ width:52px; height:52px; }
+  .side svg{ width:22px; height:22px; }
+
+  .stats{
+    margin-top:auto; padding-top:18px;
+    display:grid; grid-template-columns:repeat(3,1fr); gap:10px;
+  }
+  .stat{ background:var(--surface); border-radius:16px; padding:12px; text-align:center; }
+  .stat b{ display:block; font-size:22px; font-weight:600; font-variant-numeric:tabular-nums; }
+  .stat small{ color:var(--muted); font-size:12px; }
+
+  /* Sheets */
+  .sheet-bg{
+    position:fixed; inset:0; background:rgba(0,0,0,.5);
+    opacity:0; pointer-events:none; transition:opacity .25s; z-index:10;
+  }
+  .sheet{
+    position:fixed; left:0; right:0; bottom:0; z-index:11;
+    max-width:480px; margin:0 auto; max-height:88vh; overflow:auto;
+    background:var(--surface); border-radius:var(--radius) var(--radius) 0 0;
+    padding:10px 20px calc(env(safe-area-inset-bottom) + 20px);
+    transform:translateY(105%); transition:transform .3s cubic-bezier(.2,.8,.2,1);
+  }
+  .open .sheet-bg{ opacity:1; pointer-events:auto; }
+  .sheet.open{ transform:none; }
+  .grab{ width:40px; height:5px; border-radius:3px; background:var(--line); margin:0 auto 12px; }
+  .sheet h2{ font-size:18px; margin:0 0 12px; display:flex; justify-content:space-between; align-items:center; }
+  .sheet h2 button{ border:0; background:none; color:var(--mode); font:600 16px var(--font); cursor:pointer; }
+  .row{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:13px 0; border-bottom:1px solid var(--line); gap:12px;
+  }
+  .row:last-child{ border-bottom:0; }
+  .row span small{ display:block; color:var(--muted); font-size:12px; margin-top:2px; }
+  .stepper{ display:flex; align-items:center; gap:10px; }
+  .stepper button{
+    width:34px; height:34px; border-radius:50%; border:0; cursor:pointer;
+    background:var(--surface2); color:var(--ink); font-size:20px; line-height:1;
+  }
+  .stepper output{ min-width:54px; text-align:center; font-variant-numeric:tabular-nums; }
+  .switch{ position:relative; width:51px; height:31px; flex:none; }
+  .switch input{ position:absolute; opacity:0; inset:0; margin:0; cursor:pointer; z-index:1; }
+  .switch i{
+    position:absolute; inset:0; border-radius:16px; background:var(--surface2); transition:background .2s;
+  }
+  .switch i::after{
+    content:""; position:absolute; top:2px; left:2px; width:27px; height:27px;
+    border-radius:50%; background:#fff; transition:transform .2s;
+  }
+  .switch input:checked + i{ background:var(--short); }
+  .switch input:checked + i::after{ transform:translateX(20px); }
+
+  .chart{ display:flex; align-items:flex-end; gap:8px; height:140px; margin:8px 0 4px; }
+  .bar{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; gap:6px; }
+  .bar div{ width:100%; border-radius:6px 6px 3px 3px; background:var(--focus); min-height:3px; opacity:.85; }
+  .bar.today div{ opacity:1; }
+  .bar small{ color:var(--muted); font-size:11px; }
+  .bar em{ font-style:normal; font-size:11px; color:var(--ink); }
+  .log{ list-style:none; padding:0; margin:8px 0 0; }
+  .log li{ display:flex; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px solid var(--line); font-size:14px; }
+  .log li span:last-child{ color:var(--muted); white-space:nowrap; }
+  .empty{ color:var(--muted); font-size:14px; text-align:center; padding:14px 0; }
+  .danger{ margin-top:14px; width:100%; border:0; border-radius:12px; padding:12px; background:var(--surface2); color:var(--focus); font:600 15px var(--font); cursor:pointer; }
+
+  .hint{
+    margin-top:14px; background:var(--surface); border:1px solid var(--line);
+    border-radius:14px; padding:12px 14px; font-size:13px; color:var(--muted);
+    display:flex; gap:10px; align-items:flex-start;
+  }
+  .hint b{ color:var(--ink); }
+  .hint button{ margin-left:auto; border:0; background:none; color:var(--muted); font-size:18px; cursor:pointer; }
+  [hidden]{ display:none !important; }
+
+  .toast{
+    position:fixed; left:50%; top:calc(env(safe-area-inset-top) + 14px); z-index:20;
+    transform:translate(-50%,-150%); transition:transform .3s;
+    background:var(--surface2); color:var(--ink); padding:12px 18px; border-radius:14px;
+    font-size:15px; box-shadow:0 10px 30px rgba(0,0,0,.4); max-width:90vw; text-align:center;
+  }
+  .toast.show{ transform:translate(-50%,0); }
+</style>
+</head>
+<body data-mode="focus">
+<div class="app">
+  <header>
+    <button class="icon-btn" id="statsBtn" aria-label="Statistieken">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
+    </button>
+    <h1><span>●</span> Focus</h1>
+    <button class="icon-btn" id="settingsBtn" aria-label="Instellingen">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+    </button>
+  </header>
+
+  <div class="tabs" role="group" aria-label="Modus">
+    <button data-mode="focus" aria-pressed="true">Focus</button>
+    <button data-mode="short" aria-pressed="false">Korte pauze</button>
+    <button data-mode="long" aria-pressed="false">Lange pauze</button>
+  </div>
+
+  <div class="timer">
+    <svg viewBox="0 0 200 200" aria-hidden="true">
+      <circle class="track" cx="100" cy="100" r="92" fill="none" stroke-width="8"/>
+      <circle class="progress" id="ring" cx="100" cy="100" r="92" fill="none" stroke-width="8"/>
+    </svg>
+    <div class="center">
+      <div class="time" id="time" role="timer" aria-live="off">25:00</div>
+      <div class="label" id="label">Focus</div>
+    </div>
+  </div>
+
+  <div class="dots" id="dots" aria-label="Rondes"></div>
+
+  <input class="task" id="task" type="text" maxlength="80" placeholder="Waar werk je aan?" autocomplete="off" enterkeyhint="done">
+
+  <div class="controls">
+    <button class="icon-btn side" id="resetBtn" aria-label="Opnieuw">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 3v6h6"/></svg>
+    </button>
+    <button class="play" id="playBtn" aria-label="Start">
+      <svg id="playIcon" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 0 0 1.5.9l10.4-6.5a1 1 0 0 0 0-1.8L9.5 4.6A1 1 0 0 0 8 5.5z"/></svg>
+      <svg id="pauseIcon" viewBox="0 0 24 24" fill="currentColor" hidden><rect x="6" y="4.5" width="4" height="15" rx="1.2"/><rect x="14" y="4.5" width="4" height="15" rx="1.2"/></svg>
+    </button>
+    <button class="icon-btn side" id="skipBtn" aria-label="Overslaan">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 6.2v11.6a1 1 0 0 0 1.5.8l8.6-5.8a1 1 0 0 0 0-1.6L6.5 5.4A1 1 0 0 0 5 6.2z"/><rect x="16.5" y="5" width="2.6" height="14" rx="1"/></svg>
+    </button>
+  </div>
+
+  <div class="hint" id="installHint" hidden>
+    <span>📲</span>
+    <span>Tip: tik op <b>Deel</b> en kies <b>Zet op beginscherm</b> om Focus als app te gebruiken.</span>
+    <button id="hintClose" aria-label="Sluiten">×</button>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><b id="statCount">0</b><small>pomodoro's vandaag</small></div>
+    <div class="stat"><b id="statMin">0m</b><small>gefocust vandaag</small></div>
+    <div class="stat"><b id="statStreak">0</b><small>dagen op rij</small></div>
+  </div>
+</div>
+
+<div class="sheet-bg" id="sheetBg"></div>
+
+<section class="sheet" id="settingsSheet" aria-label="Instellingen">
+  <div class="grab"></div>
+  <h2>Instellingen <button data-close>Klaar</button></h2>
+  <div class="row"><span>Focus</span><div class="stepper" data-key="focus" data-min="5" data-max="90" data-step="5"><button>−</button><output></output><button>+</button></div></div>
+  <div class="row"><span>Korte pauze</span><div class="stepper" data-key="short" data-min="1" data-max="30" data-step="1"><button>−</button><output></output><button>+</button></div></div>
+  <div class="row"><span>Lange pauze</span><div class="stepper" data-key="long" data-min="5" data-max="60" data-step="5"><button>−</button><output></output><button>+</button></div></div>
+  <div class="row"><span>Rondes tot lange pauze</span><div class="stepper" data-key="rounds" data-min="2" data-max="8" data-step="1"><button>−</button><output></output><button>+</button></div></div>
+  <div class="row"><span>Volgende automatisch starten<small>Pauze en focus lopen door</small></span><label class="switch"><input type="checkbox" data-key="autoStart"><i></i></label></div>
+  <div class="row"><span>Geluid<small>Belletje aan het einde</small></span><label class="switch"><input type="checkbox" data-key="sound"><i></i></label></div>
+  <div class="row"><span>Tik-geluid<small>Zacht tikken tijdens focus</small></span><label class="switch"><input type="checkbox" data-key="tick"><i></i></label></div>
+  <div class="row"><span>Scherm aan laten<small>iPhone gaat niet op slot tijdens de timer</small></span><label class="switch"><input type="checkbox" data-key="wakeLock"><i></i></label></div>
+  <div class="row"><span>Meldingen<small>Bericht als de tijd om is</small></span><label class="switch"><input type="checkbox" data-key="notify"><i></i></label></div>
+</section>
+
+<section class="sheet" id="statsSheet" aria-label="Statistieken">
+  <div class="grab"></div>
+  <h2>Statistieken <button data-close>Klaar</button></h2>
+  <div class="row"><span>Afgelopen 7 dagen</span><span id="weekTotal"></span></div>
+  <div class="chart" id="chart"></div>
+  <h2 style="margin-top:18px">Vandaag</h2>
+  <ul class="log" id="log"></ul>
+  <button class="danger" id="clearBtn">Geschiedenis wissen</button>
+</section>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  const LABELS = { focus:'Focus', short:'Korte pauze', long:'Lange pauze' };
+  const DEFAULTS = { focus:25, short:5, long:15, rounds:4, autoStart:false, sound:true, tick:false, wakeLock:true, notify:false };
+
+  const store = {
+    get(k, d){ try{ const v = localStorage.getItem('focus.'+k); return v == null ? d : JSON.parse(v); }catch{ return d; } },
+    set(k, v){ try{ localStorage.setItem('focus.'+k, JSON.stringify(v)); }catch{} }
+  };
+
+  const settings = Object.assign({}, DEFAULTS, store.get('settings', {}));
+  let history = store.get('history', []);   // [{t: endTimestamp, m: minutes, task}]
+  // Timer state; endAt is an absolute timestamp so the timer stays correct
+  // when iOS suspends the page in the background.
+  let state = Object.assign({ mode:'focus', round:0, running:false, endAt:0, remaining:settings.focus*60, task:'' }, store.get('state', {}));
+
+  const ring = $('#ring');
+  const CIRC = 2 * Math.PI * 92;
+  ring.style.strokeDasharray = CIRC;
+
+  const duration = mode => settings[mode] * 60;
+  const saveState = () => store.set('state', state);
+  const secondsLeft = () => state.running ? Math.max(0, Math.round((state.endAt - Date.now()) / 1000)) : state.remaining;
+  const fmt = s => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+
+  /* ---------- Sound (Web Audio, unlocked on first tap for iOS) ---------- */
+  let ctx;
+  function audio(){
+    if (!ctx) { const AC = window.AudioContext || window.webkitAudioContext; if (AC) ctx = new AC(); }
+    if (ctx && ctx.state === 'suspended') ctx.resume();
+    return ctx;
+  }
+  function tone(freq, start, dur, vol=0.25, type='sine'){
+    const c = audio(); if (!c) return;
+    const o = c.createOscillator(), g = c.createGain();
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(0, c.currentTime + start);
+    g.gain.linearRampToValueAtTime(vol, c.currentTime + start + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + start + dur);
+    o.connect(g).connect(c.destination);
+    o.start(c.currentTime + start); o.stop(c.currentTime + start + dur + 0.05);
+  }
+  function chime(){
+    if (!settings.sound) return;
+    [[784,0],[988,.18],[1175,.36],[1568,.54]].forEach(([f,t]) => tone(f, t, 1.4, .22));
+    [[784,1.3],[1175,1.48]].forEach(([f,t]) => tone(f, t, 1.6, .18));
+  }
+  const tick = () => tone(1800, 0, 0.03, 0.04, 'square');
+
+  /* ---------- Wake lock ---------- */
+  let lock = null;
+  async function keepAwake(on){
+    try{
+      if (on && settings.wakeLock && 'wakeLock' in navigator && !lock) {
+        lock = await navigator.wakeLock.request('screen');
+        lock.addEventListener('release', () => { lock = null; });
+      } else if (!on && lock) { await lock.release(); lock = null; }
+    }catch{ lock = null; }
+  }
+
+  /* ---------- Notifications ---------- */
+  function notify(title, body){
+    if (!settings.notify || !('Notification' in window) || Notification.permission !== 'granted') return;
+    try{
+      if (navigator.serviceWorker?.controller) {
+        navigator.serviceWorker.ready.then(r => r.showNotification(title, { body, icon:'icon-192.png', tag:'focus' }));
+      } else new Notification(title, { body, icon:'icon-192.png' });
+    }catch{}
+  }
+
+  /* ---------- Rendering ---------- */
+  function renderDots(){
+    const d = $('#dots'); d.innerHTML = '';
+    for (let i = 0; i < settings.rounds; i++) {
+      const el = document.createElement('i');
+      if (i < state.round) el.className = 'done';
+      d.appendChild(el);
+    }
+  }
+  function render(){
+    const left = secondsLeft();
+    const total = duration(state.mode);
+    $('#time').textContent = fmt(left);
+    ring.style.strokeDashoffset = CIRC * (1 - Math.min(1, left / total));
+    document.body.dataset.mode = state.mode;
+    $('#label').textContent = state.running ? LABELS[state.mode] : (left === total ? LABELS[state.mode] : 'Gepauzeerd');
+    $('#playIcon').hidden = state.running;
+    $('#pauseIcon').hidden = !state.running;
+    $('#playBtn').setAttribute('aria-label', state.running ? 'Pauze' : 'Start');
+    document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-pressed', b.dataset.mode === state.mode));
+    document.title = state.running ? `${fmt(left)} · ${LABELS[state.mode]}` : 'Focus — Pomodoro';
+    renderDots();
+  }
+
+  /* ---------- Stats ---------- */
+  const dayKey = t => { const d = new Date(t); return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; };
+  function renderStats(){
+    const today = dayKey(Date.now());
+    const todays = history.filter(h => dayKey(h.t) === today);
+    const mins = todays.reduce((a, h) => a + h.m, 0);
+    $('#statCount').textContent = todays.length;
+    $('#statMin').textContent = mins >= 60 ? `${Math.floor(mins/60)}u ${mins%60}m` : `${mins}m`;
+
+    const days = new Set(history.map(h => dayKey(h.t)));
+    let streak = 0; const d = new Date();
+    if (!days.has(dayKey(d))) d.setDate(d.getDate() - 1);   // today not done yet → count from yesterday
+    while (days.has(dayKey(d))) { streak++; d.setDate(d.getDate() - 1); }
+    $('#statStreak').textContent = streak;
+  }
+  function renderStatsSheet(){
+    const chart = $('#chart'); chart.innerHTML = '';
+    const names = ['zo','ma','di','wo','do','vr','za'];
+    const week = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(); d.setDate(d.getDate() - i);
+      const k = dayKey(d);
+      week.push({ d, i, m: history.filter(h => dayKey(h.t) === k).reduce((a, h) => a + h.m, 0) });
+    }
+    const max = Math.max(60, ...week.map(w => w.m));
+    week.forEach(w => {
+      const el = document.createElement('div');
+      el.className = 'bar' + (w.i === 0 ? ' today' : '');
+      el.innerHTML = `<em>${w.m ? w.m + 'm' : ''}</em><div style="height:${(w.m / max) * 100}%"></div><small>${w.i === 0 ? 'nu' : names[w.d.getDay()]}</small>`;
+      chart.appendChild(el);
+    });
+    const tot = week.reduce((a, w) => a + w.m, 0);
+    $('#weekTotal').textContent = `${Math.floor(tot/60)}u ${tot%60}m`;
+
+    const log = $('#log'); log.innerHTML = '';
+    const today = dayKey(Date.now());
+    const todays = history.filter(h => dayKey(h.t) === today).reverse();
+    if (!todays.length) log.innerHTML = '<li class="empty">Nog geen pomodoro’s vandaag. Je kunt het!</li>';
+    todays.forEach(h => {
+      const li = document.createElement('li');
+      const a = document.createElement('span'); a.textContent = h.task || 'Focus';
+      const b = document.createElement('span');
+      b.textContent = `${new Date(h.t).toLocaleTimeString('nl-NL', { hour:'2-digit', minute:'2-digit' })} · ${h.m} min`;
+      li.append(a, b); log.appendChild(li);
+    });
+  }
+
+  /* ---------- Timer logic ---------- */
+  let loop = null;
+  function start(){
+    audio();
+    state.endAt = Date.now() + secondsLeft() * 1000;
+    state.running = true;
+    saveState(); keepAwake(true); run(); render();
+  }
+  function pause(){
+    state.remaining = secondsLeft();
+    state.running = false;
+    saveState(); keepAwake(false); clearInterval(loop); render();
+  }
+  function setMode(mode, keepRunning = false){
+    clearInterval(loop);
+    state.mode = mode;
+    state.remaining = duration(mode);
+    state.running = false;
+    saveState(); render();
+    if (keepRunning) start(); else keepAwake(false);
+  }
+  function complete(silent = false){
+    clearInterval(loop);
+    const finished = state.mode;
+    let next;
+    if (finished === 'focus') {
+      history.push({ t: Date.now(), m: settings.focus, task: state.task || '' });
+      history = history.filter(h => h.t > Date.now() - 60 * 864e5);   // keep 60 days
+      store.set('history', history);
+      state.round++;
+      if (state.round >= settings.rounds) { next = 'long'; }
+      else next = 'short';
+    } else {
+      if (finished === 'long') state.round = 0;
+      next = 'focus';
+    }
+    if (!silent) {
+      chime();
+      if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+      const msg = finished === 'focus'
+        ? (next === 'long' ? 'Goed gedaan! Tijd voor een lange pauze. 🌿' : 'Focus klaar! Neem even pauze. ☕')
+        : 'Pauze voorbij — tijd om te focussen. 🎯';
+      toast(msg);
+      notify(finished === 'focus' ? 'Focus klaar' : 'Pauze voorbij', msg);
+    }
+    renderStats();
+    setMode(next, settings.autoStart && !silent);
+  }
+  function run(){
+    clearInterval(loop);
+    let last = -1;
+    loop = setInterval(() => {
+      const left = secondsLeft();
+      if (left !== last) {
+        last = left;
+        if (settings.tick && state.mode === 'focus' && left > 0) tick();
+        render();
+      }
+      if (left <= 0) complete();
+    }, 250);
+  }
+
+  /* ---------- UI ---------- */
+  let toastTimer;
+  function toast(msg){
+    const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 3500);
+  }
+
+  $('#playBtn').addEventListener('click', () => state.running ? pause() : start());
+  $('#resetBtn').addEventListener('click', () => setMode(state.mode));
+  $('#skipBtn').addEventListener('click', () => {
+    // Skipping a focus session does not count it as done
+    if (state.mode === 'focus') { const r = state.round; setMode(r + 1 >= settings.rounds ? 'long' : 'short'); }
+    else complete(true);
+  });
+  document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => {
+    if (b.dataset.mode === state.mode) return;
+    if (state.running && !confirm('De timer loopt nog. Wisselen?')) return;
+    setMode(b.dataset.mode);
+  }));
+
+  const task = $('#task');
+  task.value = state.task || '';
+  task.addEventListener('input', () => { state.task = task.value; saveState(); });
+  task.addEventListener('keydown', e => { if (e.key === 'Enter') task.blur(); });
+
+  // Sheets
+  function openSheet(id){
+    document.body.classList.add('open');
+    $(id).classList.add('open');
+    if (id === '#statsSheet') renderStatsSheet();
+  }
+  function closeSheets(){
+    document.body.classList.remove('open');
+    document.querySelectorAll('.sheet').forEach(s => s.classList.remove('open'));
+  }
+  $('#settingsBtn').addEventListener('click', () => openSheet('#settingsSheet'));
+  $('#statsBtn').addEventListener('click', () => openSheet('#statsSheet'));
+  $('#sheetBg').addEventListener('click', closeSheets);
+  document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', closeSheets));
+
+  // Settings controls
+  const saveSettings = () => store.set('settings', settings);
+  document.querySelectorAll('.stepper').forEach(st => {
+    const k = st.dataset.key, min = +st.dataset.min, max = +st.dataset.max, step = +st.dataset.step;
+    const out = st.querySelector('output');
+    const show = () => out.textContent = k === 'rounds' ? settings[k] : settings[k] + ' min';
+    const [minus, plus] = st.querySelectorAll('button');
+    const change = d => {
+      settings[k] = Math.min(max, Math.max(min, settings[k] + d));
+      saveSettings(); show();
+      if (k === 'rounds') state.round = Math.min(state.round, settings.rounds - 1);
+      if (k === state.mode && !state.running) state.remaining = duration(k);
+      saveState(); render();
+    };
+    minus.addEventListener('click', () => change(-step));
+    plus.addEventListener('click', () => change(step));
+    show();
+  });
+  document.querySelectorAll('.switch input').forEach(inp => {
+    const k = inp.dataset.key;
+    inp.checked = !!settings[k];
+    inp.addEventListener('change', async () => {
+      settings[k] = inp.checked;
+      if (k === 'notify' && inp.checked) {
+        if (!('Notification' in window)) {
+          toast('Meldingen werken op iPhone alleen als Focus op je beginscherm staat.');
+          inp.checked = settings.notify = false;
+        } else if ((await Notification.requestPermission()) !== 'granted') {
+          toast('Meldingen zijn niet toegestaan.');
+          inp.checked = settings.notify = false;
+        }
+      }
+      if (k === 'wakeLock') keepAwake(inp.checked && state.running);
+      if (k === 'sound' && inp.checked) chime();
+      saveSettings();
+    });
+  });
+
+  $('#clearBtn').addEventListener('click', () => {
+    if (!confirm('Alle geschiedenis wissen?')) return;
+    history = []; store.set('history', history);
+    renderStats(); renderStatsSheet();
+  });
+
+  // Install hint for iPhone Safari (not yet on home screen)
+  const standalone = navigator.standalone || matchMedia('(display-mode: standalone)').matches;
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (ios && !standalone && !store.get('hintClosed', false)) $('#installHint').hidden = false;
+  $('#hintClose').addEventListener('click', () => { $('#installHint').hidden = true; store.set('hintClosed', true); });
+
+  // Coming back from the background: catch up with the real clock
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      if (state.running) {
+        if (secondsLeft() <= 0) complete(); else { keepAwake(true); render(); }
+      }
+      renderStats();
+    }
+  });
+
+  document.addEventListener('keydown', e => {
+    if (e.code === 'Space' && e.target !== task) { e.preventDefault(); $('#playBtn').click(); }
+  });
+
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+
+  // Resume after reload
+  if (state.running) { if (secondsLeft() <= 0) complete(); else { run(); keepAwake(true); } }
+  render(); renderStats();
+})();
+</script>
+</body>
+</html>
