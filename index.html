@@ -341,11 +341,10 @@
   </div>
 
   <div class="card">
-    <textarea id="textInput" placeholder="Plak hier je tekst, bijvoorbeeld een stukje uit een boek of een opdracht voor school...">Er was eens een klein konijntje dat Timo heette. Timo woonde in een knus holletje onder een grote eikenboom. Elke ochtend, als de zon opkwam, ging hij naar buiten om verse klaver te zoeken. Op een dag ontmoette hij een egeltje dat verdwaald was. Timo besloot om het egeltje te helpen de weg terug naar huis te vinden.</textarea>
+    <textarea id="textInput" placeholder="Plak hier je tekst, bijvoorbeeld een stukje uit een boek of een opdracht voor school..."></textarea>
     <div class="reading-view" id="readingView"></div>
 
     <div class="toolbar">
-      <button class="chip" id="btnSample" type="button">✨ Voorbeeldtekst</button>
       <button class="chip" id="btnClear" type="button">🗑️ Wissen</button>
       <button class="chip" id="btnFontSize">🔎 Grotere letters</button>
       <button class="chip" id="btnFont">🔤 Kindvriendelijk lettertype: aan</button>
@@ -400,7 +399,6 @@
   const btnStop = document.getElementById('btnStop');
   const btnRestart = document.getElementById('btnRestart');
   const btnEdit = document.getElementById('btnEdit');
-  const btnSample = document.getElementById('btnSample');
   const btnClear = document.getElementById('btnClear');
   const btnFontSize = document.getElementById('btnFontSize');
   const btnFont = document.getElementById('btnFont');
@@ -409,7 +407,6 @@
   const speedPresets = document.querySelectorAll('.speed-presets button');
   const status = document.getElementById('status');
 
-  const SAMPLE = textInput.value;
 
   let voices = [];
   let genderPref = localStorage.getItem('vh_gender') || 'girl';
@@ -517,7 +514,6 @@
   });
 
   // ---- Text tools ----
-  btnSample.addEventListener('click', () => { textInput.value = SAMPLE; });
   btnClear.addEventListener('click', () => {
     speechSynthesis.cancel();
     isPlaying = false;
