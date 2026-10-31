@@ -7,8 +7,7 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div class="wrap">
-  <header>
+<header>
     <svg class="owl-badge" viewBox="0 0 120 120" width="72" height="72" aria-hidden="true">
       <circle cx="60" cy="60" r="56" fill="#7ac142"/>
       <path d="M60 14c-23 0-38 16-38 40 0 26 17 44 38 44s38-18 38-44c0-24-15-40-38-40z" fill="#2ea8da"/>
@@ -21,10 +20,10 @@
       <path d="M60 62l-10 14h20z" fill="#f4901e"/>
       <path d="M46 84c5 5 23 5 28 0" stroke="#2c3e50" stroke-width="3" fill="none" stroke-linecap="round"/>
     </svg>
-    <h1>Voorleeshulp</h1>
-    <p>Plak of typ een tekst, kies een stem en luister lekker rustig mee.</p>
-  </header>
+    <h1>Voorleeshulp<small>Plak of typ een tekst, kies een stem en luister lekker rustig mee.</small></h1>
+</header>
 
+<main class="wrap">
   <div class="card">
     <div class="voice-row">
       <button class="voice-btn girl" id="btnGirl" type="button">
@@ -100,7 +99,7 @@
   </div>
 
   <footer>Deze app gebruikt de spraakstem van je eigen apparaat — er wordt niets naar internet gestuurd.</footer>
-</div>
+</main>
 
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js" integrity="sha384-GJqSu7vueQ9qN0E9yLPb3Wtpd7OrgK8KmYzC8T1IysG1bcvxvIO4qtYR/D3A991F" crossorigin="anonymous"></script>
 <script src="app.js"></script>
