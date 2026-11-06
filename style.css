@@ -216,3 +216,6 @@ html[data-no-word-highlight] .reading-view .word.current { background: none; }
 .install-steps { margin: 0; padding-left: 1.4em; font-size: 1rem; line-height: 1.6; }
 .install-steps li { margin-bottom: 8px; }
 #btnShowInstall { margin-bottom: 10px; }
+
+.show-all { display:block; margin-top:8px; font-size:.95rem; }
+#langSelect { width:100%; margin-bottom:10px; }

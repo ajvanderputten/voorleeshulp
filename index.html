@@ -58,11 +58,18 @@
       </button>
     </div>
     <div class="voice-pick">
+      <label for="langSelect">Taal van de tekst</label>
+      <select id="langSelect">
+        <option value="auto" selected>Automatisch herkennen</option>
+        <option value="nl">🇳🇱 Nederlands</option>
+        <option value="en">🇬🇧 Engels</option>
+      </select>
       <label for="voiceSelect">Kies een stem</label>
       <div class="voice-pick-row">
         <select id="voiceSelect"></select>
         <button type="button" id="btnVoiceTest" class="chip">🔊 Luister proef</button>
       </div>
+      <label class="show-all"><input type="checkbox" id="showAllVoices"> Toon stemmen in alle talen</label>
       <p class="hint" id="voiceHint"></p>
     </div>
   </div>

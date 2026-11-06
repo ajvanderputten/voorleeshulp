@@ -71,8 +71,16 @@
     return (en >= 2 && en > nl) ? 'en' : 'nl';
   }
 
+  const langSelect = document.getElementById('langSelect');
+  const showAllVoices = document.getElementById('showAllVoices');
+  let langPref = 'auto';
+  let showAll = false;
+  try { langPref = localStorage.getItem('vh_lang') || 'auto'; showAll = localStorage.getItem('vh_showAll') === '1'; } catch (e) {}
+  langSelect.value = langPref;
+  showAllVoices.checked = showAll;
+
   function refreshLang(){
-    const lang = detectLang(textInput.value);
+    const lang = langPref === 'auto' ? detectLang(textInput.value) : langPref;
     if (lang === currentLang) return;
     currentLang = lang;
     if (voices.length) { autoAssignGenderVoices(); applyGenderSelection(); }
@@ -149,7 +157,8 @@
   function renderVoiceSelect(){
     if (!voiceSelect || !voices.length) return;
     const dutch = langVoices();
-    const list = (dutch.length ? dutch : voices).slice().sort((a, b) =>
+    const list = (showAll || !dutch.length ? voices : dutch).slice().sort((a, b) =>
+      (showAll ? voiceLang(a).localeCompare(voiceLang(b)) : 0) ||
       (voiceLang(a).startsWith('nl-be') - voiceLang(b).startsWith('nl-be')) || a.name.localeCompare(b.name));
     voiceSelect.innerHTML = '';
     const auto = document.createElement('option');
@@ -165,12 +174,24 @@
     });
     const chosen = getChosenVoice();
     voiceSelect.value = chosen ? chosen.voiceURI : '';
-    voiceLabelEl.textContent = 'Kies een stem' + (currentLang === 'en' ? ' (de tekst lijkt Engels)' : '');
+    voiceLabelEl.textContent = 'Kies een stem' + (currentLang === 'en' ? ' (Engels)' : '');
     const langName = currentLang === 'en' ? 'Engelse' : 'Nederlandse';
     voiceHint.textContent = dutch.length
       ? ''
       : 'Er is geen ' + langName + ' stem gevonden. Op een iPhone/iPad: Instellingen → Toegankelijkheid → Gesproken content → Stemmen → ' + (currentLang === 'en' ? 'Engels' : 'Nederlands') + '.';
   }
+
+  langSelect.addEventListener('change', () => {
+    langPref = langSelect.value;
+    try { localStorage.setItem('vh_lang', langPref); } catch (e) {}
+    refreshLang();
+    if (voices.length) renderVoiceSelect();
+  });
+  showAllVoices.addEventListener('change', () => {
+    showAll = showAllVoices.checked;
+    try { localStorage.setItem('vh_showAll', showAll ? '1' : '0'); } catch (e) {}
+    renderVoiceSelect();
+  });
 
   voiceSelect.addEventListener('change', () => {
     try {
@@ -577,7 +598,7 @@
   const OCR_STATUS_LABELS = {
     'loading tesseract core': 'Tekstherkenning laden...',
     'initializing tesseract': 'Even opstarten...',
-    'loading language traineddata': 'Nederlands woordenboek laden...',
+    'loading language traineddata': 'Woordenboek laden...',
     'initializing api': 'Bijna klaar om te lezen...',
     'recognizing text': 'Tekst herkennen...'
   };
@@ -776,7 +797,7 @@
     setOcrStatus('Voorbereiden...', 0);
     try {
       const processed = await preprocessImage(file, { ...crop });
-      const result = await Tesseract.recognize(processed, 'nld', {
+      const result = await Tesseract.recognize(processed, langPref === 'en' ? 'eng' : langPref === 'nl' ? 'nld' : 'nld+eng', {
         logger: (m) => {
           const label = OCR_STATUS_LABELS[m.status] || 'Bezig...';
           setOcrStatus(label, typeof m.progress === 'number' ? m.progress : 0);
