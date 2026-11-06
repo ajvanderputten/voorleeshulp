@@ -18,6 +18,7 @@
   const voiceSelect = document.getElementById('voiceSelect');
   const btnVoiceTest = document.getElementById('btnVoiceTest');
   const voiceHint = document.getElementById('voiceHint');
+  const voiceLabelEl = document.querySelector('label[for="voiceSelect"]');
 
 
   let voices = [];
@@ -29,8 +30,8 @@
   document.body.classList.toggle('font-normal', !kidFont);
   btnFont.textContent = '🔤 Kindvriendelijk lettertype: ' + (kidFont ? 'aan' : 'uit');
 
-  const FEMALE_HINTS = ['vrouw','female','fenna','claire','lotte','sophie','samantha','victoria','karen','xenia','anna','ellen','laura','amelie','zosia','marie','lucia','nora','ioana','joana','daria','tina','sara','laila','moira','tessa','monica','paulina','milena'];
-  const MALE_HINTS = ['man','male','xander','frank','bart','ruben','daniel','arthur','fred','tom','alex','diego','luca','felix','thomas','jacques','ralph','albert','rishi','junior'];
+  const FEMALE_HINTS = ['vrouw','female','fenna','claire','lotte','sophie','samantha','victoria','karen','xenia','anna','ellen','laura','amelie','zosia','marie','lucia','nora','ioana','joana','daria','tina','sara','laila','moira','tessa','monica','paulina','milena','serena','kate','susan','zira','hazel','catherine','fiona','jenny','aria','emma','olivia','libby','sonia','ava'];
+  const MALE_HINTS = ['man','male','xander','frank','bart','ruben','daniel','arthur','fred','tom','alex','diego','luca','felix','thomas','jacques','ralph','albert','rishi','junior','oliver','george','david','mark','james','aaron','gordon','guy','ryan','thomas','eric','brian','davis'];
   // Auto-detected voices can't always be told apart by gender; pitch keeps the two knoppen audibly different even on devices with just one Dutch stem.
   const GENDER_PITCH = { girl: 1.15, boy: 0.85 };
 
@@ -43,7 +44,7 @@
 
   function scoreVoice(v){
     let s = 0;
-    if (v.lang && v.lang.toLowerCase().startsWith('nl')) s += 10;
+    if (v.lang && v.lang.toLowerCase().startsWith(currentLang)) s += 10;
     if (v.localService) s += 2;
     return s;
   }
@@ -58,14 +59,38 @@
 
   let girlVoice = null, boyVoice = null;
 
+  // Taal van de tekst: Nederlands of Engels, geraden aan veelvoorkomende woorden.
+  const NL_WORDS = new Set(['de','het','een','en','van','ik','je','jij','dat','die','is','zijn','was','waren','niet','op','te','met','voor','maar','ook','als','er','aan','om','bij','nog','naar','uit','hij','zij','ze','wij','we','dit','wat','hun','haar','zo','dan','kon','ging','werd','heeft','hebben','had','konden','veel','alle','geen','nu','toen','weer','over','door']);
+  const EN_WORDS = new Set(['the','a','an','and','of','to','in','is','are','was','were','it','he','she','they','we','you','i','that','this','with','for','on','as','at','by','not','but','his','her','their','have','has','had','be','been','from','or','one','all','there','what','when','so','if','would','could','said','then','out','up','into','who','will']);
+  let currentLang = 'nl';
+
+  function detectLang(text){
+    const words = (text || '').toLowerCase().match(/[a-zà-ÿ']+/g) || [];
+    let nl = 0, en = 0;
+    words.forEach(w => { if (NL_WORDS.has(w)) nl++; if (EN_WORDS.has(w)) en++; });
+    return (en >= 2 && en > nl) ? 'en' : 'nl';
+  }
+
+  function refreshLang(){
+    const lang = detectLang(textInput.value);
+    if (lang === currentLang) return;
+    currentLang = lang;
+    if (voices.length) { autoAssignGenderVoices(); applyGenderSelection(); }
+  }
+  const FALLBACK_LANG = { nl: 'nl-NL', en: 'en-GB' };
+
   function voiceLang(v){
     return (v.lang || '').toLowerCase().replace('_', '-');
+  }
+
+  function langVoices(){
+    return voices.filter(v => voiceLang(v).startsWith(currentLang));
   }
 
   function getDutchVoicePool(){
     // Voorkeur voor Nederlands uit Nederland (nl-NL), zodat er geen Vlaamse stem (nl-BE) gekozen wordt.
     // Alleen als er geen nl-NL stem is, vallen we terug op andere Nederlandse stemmen, en daarna op alles zodat de app blijft werken.
-    const dutch = voices.filter(v => voiceLang(v).startsWith('nl'));
+    const dutch = langVoices();
     const nlNL = dutch.filter(v => !voiceLang(v).startsWith('nl-be'));
     if (nlNL.length) return nlNL;
     return dutch.length ? dutch : voices;
@@ -73,7 +98,7 @@
 
   function autoAssignGenderVoices(){
     const pool = getDutchVoicePool();
-    const dutchAll = voices.filter(v => voiceLang(v).startsWith('nl'));
+    const dutchAll = langVoices();
     const isBE = (v) => voiceLang(v).startsWith('nl-be');
     // Nederlands uit Nederland gaat voor, daarna de beste kwaliteit.
     const rank = (a, b) => (isBE(a) - isBE(b)) || (scoreVoice(b) - scoreVoice(a));
@@ -101,7 +126,7 @@
   }
 
   // Zelf gekozen stem, per knop (vrouw/man) onthouden.
-  function chosenVoiceKey(){ return 'vh_voice_' + genderPref; }
+  function chosenVoiceKey(){ return (currentLang === 'nl' ? 'vh_voice_' : 'vh_voice_' + currentLang + '_') + genderPref; }
   function getChosenVoice(){
     let uri = '';
     try { uri = localStorage.getItem(chosenVoiceKey()) || ''; } catch (e) {}
@@ -115,13 +140,15 @@
 
   function voiceLabel(v){
     const lang = voiceLang(v);
-    const region = lang.startsWith('nl-be') ? 'Vlaams' : lang.startsWith('nl') ? 'Nederland' : (v.lang || '');
+    const region = lang.startsWith('nl-be') ? 'Vlaams' : lang.startsWith('nl') ? 'Nederland'
+      : lang.startsWith('en-gb') ? 'Brits' : lang.startsWith('en-us') ? 'Amerikaans' : lang.startsWith('en-au') ? 'Australisch'
+      : lang.startsWith('en-ie') ? 'Iers' : lang.startsWith('en-in') ? 'Indiaas' : (v.lang || '');
     return v.name + ' (' + region + ')';
   }
 
   function renderVoiceSelect(){
     if (!voiceSelect || !voices.length) return;
-    const dutch = voices.filter(v => voiceLang(v).startsWith('nl'));
+    const dutch = langVoices();
     const list = (dutch.length ? dutch : voices).slice().sort((a, b) =>
       (voiceLang(a).startsWith('nl-be') - voiceLang(b).startsWith('nl-be')) || a.name.localeCompare(b.name));
     voiceSelect.innerHTML = '';
@@ -138,9 +165,11 @@
     });
     const chosen = getChosenVoice();
     voiceSelect.value = chosen ? chosen.voiceURI : '';
+    voiceLabelEl.textContent = 'Kies een stem' + (currentLang === 'en' ? ' (de tekst lijkt Engels)' : '');
+    const langName = currentLang === 'en' ? 'Engelse' : 'Nederlandse';
     voiceHint.textContent = dutch.length
       ? ''
-      : 'Er is geen Nederlandse stem gevonden. Op een iPhone/iPad: Instellingen → Toegankelijkheid → Gesproken content → Stemmen → Nederlands.';
+      : 'Er is geen ' + langName + ' stem gevonden. Op een iPhone/iPad: Instellingen → Toegankelijkheid → Gesproken content → Stemmen → ' + (currentLang === 'en' ? 'Engels' : 'Nederlands') + '.';
   }
 
   voiceSelect.addEventListener('change', () => {
@@ -157,11 +186,14 @@
     if (isPlaying || isPaused) stopPlayback();
     speechSynthesis.cancel();
     const voice = getSelectedVoice();
-    const utter = new SpeechSynthesisUtterance('Hallo, ik ben ' + (voice ? voice.name : 'je stem') + '. Zo klink ik als ik voorlees.');
+    const name = voice ? voice.name : (currentLang === 'en' ? 'your voice' : 'je stem');
+    const utter = new SpeechSynthesisUtterance(currentLang === 'en'
+      ? 'Hello, I am ' + name + '. This is how I sound when I read aloud.'
+      : 'Hallo, ik ben ' + name + '. Zo klink ik als ik voorlees.');
     if (voice) utter.voice = voice;
     utter.rate = parseFloat(rateSlider.value);
     utter.pitch = getChosenVoice() ? 1.0 : (GENDER_PITCH[genderPref] || 1.0);
-    utter.lang = (voice && voice.lang) || 'nl-NL';
+    utter.lang = (voice && voice.lang) || FALLBACK_LANG[currentLang];
     speechSynthesis.speak(utter);
   }
 
@@ -211,6 +243,7 @@
     sentenceEls = [];
     currentIndex = -1;
     textInput.value = '';
+    refreshLang();
     textInput.focus();
     btnPlay.disabled = false;
     btnPause.disabled = true;
@@ -245,6 +278,7 @@
   }
 
   function buildReadingView(){
+    refreshLang();
     const sentences = splitSentences(textInput.value);
     readingView.innerHTML = '';
     sentenceEls = [];
@@ -326,7 +360,7 @@
     if (voice) utter.voice = voice;
     utter.rate = parseFloat(rateSlider.value);
     utter.pitch = getChosenVoice() ? 1.0 : (GENDER_PITCH[genderPref] || 1.0);
-    utter.lang = (voice && voice.lang) || 'nl-NL';
+    utter.lang = (voice && voice.lang) || FALLBACK_LANG[currentLang];
 
     utter.onboundary = (e) => {
       if (e.name !== 'word' && e.charIndex === undefined) return;
@@ -444,6 +478,7 @@
   textInput.addEventListener('input', () => {
     sentenceEls = [];
     currentIndex = -1;
+    refreshLang();
   });
 
   // ---- Photo / scan (OCR) ----
@@ -684,6 +719,7 @@
         exitReadingMode();
         btnPlay.disabled = false; btnPause.disabled = true; btnStop.disabled = true; btnRestart.disabled = true;
         textInput.value = text;
+        refreshLang();
         sentenceEls = []; currentIndex = -1;
         setOcrStatus('Tekst gevonden! Controleer de tekst hierboven en klik daarna op ▶️ Afspelen.', null);
         textInput.scrollIntoView({ block: 'center', behavior: 'smooth' });
@@ -737,6 +773,7 @@
     sentenceEls = [];
     currentIndex = -1;
     textInput.value = item.text;
+    refreshLang();
     btnPlay.disabled = false;
     btnPause.disabled = true;
     btnStop.disabled = true;
