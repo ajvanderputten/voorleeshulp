@@ -1,4 +1,7 @@
 (function(){
+  // Verhoog dit nummer bij elke wijziging, samen met VERSION in sw.js.
+  const APP_VERSION = '1.2.0';
+  document.getElementById('appVersion').textContent = APP_VERSION;
   const textInput = document.getElementById('textInput');
   const readingView = document.getElementById('readingView');
   const btnGirl = document.getElementById('btnGirl');

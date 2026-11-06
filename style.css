@@ -219,3 +219,5 @@ html[data-no-word-highlight] .reading-view .word.current { background: none; }
 
 .show-all { display:block; margin-top:8px; font-size:.95rem; }
 #langSelect { width:100%; margin-bottom:10px; }
+
+.version { opacity:.7; }
