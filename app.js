@@ -1,6 +1,6 @@
 (function(){
   // Verhoog dit nummer bij elke wijziging, samen met VERSION in sw.js.
-  const APP_VERSION = '1.3.0';
+  const APP_VERSION = '1.4.0';
   document.getElementById('appVersion').textContent = APP_VERSION;
   const textInput = document.getElementById('textInput');
   const readingView = document.getElementById('readingView');
@@ -10,6 +10,8 @@
   const btnPause = document.getElementById('btnPause');
   const btnStop = document.getElementById('btnStop');
   const btnRestart = document.getElementById('btnRestart');
+  const btnPrev = document.getElementById('btnPrev');
+  const btnNext = document.getElementById('btnNext');
   const btnEdit = document.getElementById('btnEdit');
   const btnClear = document.getElementById('btnClear');
   const btnFontSize = document.getElementById('btnFontSize');
@@ -63,16 +65,8 @@
   let girlVoice = null, boyVoice = null;
 
   // Taal van de tekst: Nederlands of Engels, geraden aan veelvoorkomende woorden.
-  const NL_WORDS = new Set(['de','het','een','en','van','ik','je','jij','dat','die','is','zijn','was','waren','niet','op','te','met','voor','maar','ook','als','er','aan','om','bij','nog','naar','uit','hij','zij','ze','wij','we','dit','wat','hun','haar','zo','dan','kon','ging','werd','heeft','hebben','had','konden','veel','alle','geen','nu','toen','weer','over','door']);
-  const EN_WORDS = new Set(['the','a','an','and','of','to','in','is','are','was','were','it','he','she','they','we','you','i','that','this','with','for','on','as','at','by','not','but','his','her','their','have','has','had','be','been','from','or','one','all','there','what','when','so','if','would','could','said','then','out','up','into','who','will']);
+  const { splitSentences, detectLang, isNatural } = window.TextUtils;
   let currentLang = 'nl';
-
-  function detectLang(text){
-    const words = (text || '').toLowerCase().match(/[a-zà-ÿ']+/g) || [];
-    let nl = 0, en = 0;
-    words.forEach(w => { if (NL_WORDS.has(w)) nl++; if (EN_WORDS.has(w)) en++; });
-    return (en >= 2 && en > nl) ? 'en' : 'nl';
-  }
 
   const langSelect = document.getElementById('langSelect');
   const showAllVoices = document.getElementById('showAllVoices');
@@ -92,11 +86,6 @@
 
   function voiceLang(v){
     return (v.lang || '').toLowerCase().replace('_', '-');
-  }
-
-  // Natuurlijke stemmen: "Natural"/"Neural" (Edge), "Premium"/"Enhanced" (iPhone/Mac), Siri en Google-stemmen.
-  function isNatural(v){
-    return /natural|neural|premium|enhanced|siri|google|online/i.test(v.name);
   }
 
   function britishNatural(){
@@ -370,13 +359,6 @@
     speechSynthesis.cancel();
   }
 
-  function splitSentences(text){
-    const trimmed = text.trim();
-    if (!trimmed) return [];
-    const matches = trimmed.match(/[^.!?\n]+[.!?]*(\n+|$)/g) || [trimmed];
-    return matches.map(s => s.trim()).filter(Boolean);
-  }
-
   function buildReadingView(){
     refreshLang();
     const sentences = splitSentences(textInput.value);
@@ -566,14 +548,30 @@
     startPlayback(0);
   });
 
+  function jumpTo(idx){
+    cancelSpeech();
+    isPaused = false;
+    startPlayback(sentenceEls.length ? idx : 0);
+  }
+
+  // Vorige/volgende zin.
+  function jumpBy(delta){
+    if (!textInput.value.trim()) { setStatus('Typ of plak eerst een tekstje om voor te lezen.'); return; }
+    if (!sentenceEls.length) { jumpTo(0); return; }
+    const base = currentIndex < 0 ? (delta > 0 ? -1 : 1) : currentIndex;
+    const idx = Math.max(0, Math.min(sentenceEls.length - 1, base + delta));
+    jumpTo(idx);
+  }
+  btnPrev.addEventListener('click', () => jumpBy(-1));
+  btnNext.addEventListener('click', () => jumpBy(1));
+
   // Tik op een zin om vanaf daar verder te lezen.
   readingView.addEventListener('click', (e) => {
     const sEl = e.target.closest('.sentence');
     if (!sEl) return;
     const idx = sentenceEls.findIndex(s => s.el === sEl);
     if (idx < 0) return;
-    cancelSpeech();
-    startPlayback(idx);
+    jumpTo(idx);
   });
 
   btnEdit.addEventListener('click', () => {
