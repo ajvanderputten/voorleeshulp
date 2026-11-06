@@ -207,3 +207,12 @@ html[data-no-word-highlight] .reading-view .word.current { background: none; }
 .opt-check { align-self: end; }
 .opt-check label { justify-content: flex-start; align-items: center; min-height: 44px; }
 .opt-check input { width: 22px; height: 22px; accent-color: var(--purple); }
+
+/* Op beginscherm zetten */
+.install-card { position: relative; }
+.install-card[hidden], #installIos[hidden], #installOther[hidden], #btnShowInstall[hidden] { display: none; }
+.install-close { position: absolute; top: 8px; right: 8px; min-height: 44px; min-width: 44px; padding: 0; border-radius: 50%; font-size: 1rem; }
+.install-card .section-title { padding-right: 48px; }
+.install-steps { margin: 0; padding-left: 1.4em; font-size: 1rem; line-height: 1.6; }
+.install-steps li { margin-bottom: 8px; }
+#btnShowInstall { margin-bottom: 10px; }

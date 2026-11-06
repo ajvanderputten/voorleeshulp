@@ -896,6 +896,53 @@
   renderSavedList();
 
   // ---- Installeerbaar + offline (service worker) ----
+  // ---- Op beginscherm zetten ----
+  (function(){
+    const card = document.getElementById('installCard');
+    const iosBox = document.getElementById('installIos');
+    const otherBox = document.getElementById('installOther');
+    const btnInstall = document.getElementById('btnInstall');
+    const btnShow = document.getElementById('btnShowInstall');
+    const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+    if (standalone) return;
+    // iPadOS meldt zich als Mac, maar heeft een aanraakscherm.
+    const isIos = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    let deferred = null;
+    let dismissed = false;
+    try { dismissed = localStorage.getItem('vh_install_dismissed') === '1'; } catch (e) {}
+
+    function show(){
+      iosBox.hidden = !isIos;
+      otherBox.hidden = isIos || !deferred;
+      if (!isIos && !deferred) return;
+      card.hidden = false;
+      btnShow.hidden = true;
+    }
+    function hide(){
+      card.hidden = true;
+      btnShow.hidden = !(isIos || deferred);
+    }
+    document.getElementById('installClose').addEventListener('click', () => {
+      try { localStorage.setItem('vh_install_dismissed', '1'); } catch (e) {}
+      hide();
+    });
+    btnShow.addEventListener('click', show);
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferred = e;
+      dismissed ? hide() : show();
+    });
+    btnInstall.addEventListener('click', async () => {
+      if (!deferred) return;
+      deferred.prompt();
+      try { await deferred.userChoice; } catch (e) {}
+      deferred = null;
+      hide();
+    });
+    window.addEventListener('appinstalled', () => { deferred = null; card.hidden = true; btnShow.hidden = true; });
+    if (isIos) dismissed ? hide() : show();
+  })();
+
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('sw.js').catch(() => {});

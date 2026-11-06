@@ -32,6 +32,22 @@
 </header>
 
 <main class="wrap">
+  <div class="card install-card" id="installCard" hidden>
+    <button type="button" class="install-close" id="installClose" aria-label="Sluiten">✖</button>
+    <h2 class="section-title">📲 Zet de app op je beginscherm</h2>
+    <div id="installIos" hidden>
+      <ol class="install-steps">
+        <li>Tik onderaan (iPhone) of bovenaan (iPad) in Safari op de knop <strong>Deel</strong> <span class="share-icon" aria-hidden="true">⬆️</span> (een vierkantje met een pijl).</li>
+        <li>Scrol naar beneden en tik op <strong>Zet op beginscherm</strong>.</li>
+        <li>Tik rechtsboven op <strong>Voeg toe</strong>. Klaar: de uil staat nu tussen je apps.</li>
+      </ol>
+    </div>
+    <div id="installOther" hidden>
+      <p class="hint">Installeer Voorleeshulp als app, dan start hij op zoals elke andere app en werkt hij ook zonder internet.</p>
+      <button type="button" class="scan-btn primary" id="btnInstall">📲 Installeren</button>
+    </div>
+  </div>
+
   <div class="card">
     <div class="voice-row">
       <button class="voice-btn girl" id="btnGirl" type="button">
@@ -171,7 +187,7 @@
     <div class="status" id="savedStatus"></div>
   </div>
 
-  <footer>Deze app gebruikt de spraakstem van je eigen apparaat — er wordt niets naar internet gestuurd.</footer>
+  <footer><button type="button" class="chip" id="btnShowInstall" hidden>📲 Zet op beginscherm</button><br>Deze app gebruikt de spraakstem van je eigen apparaat — er wordt niets naar internet gestuurd.</footer>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js" integrity="sha384-GJqSu7vueQ9qN0E9yLPb3Wtpd7OrgK8KmYzC8T1IysG1bcvxvIO4qtYR/D3A991F" crossorigin="anonymous"></script>
