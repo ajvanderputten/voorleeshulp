@@ -113,6 +113,51 @@
     </div>
 
     <div class="status" id="status"></div>
+
+    <details class="options" id="optionsBox">
+      <summary>⚙️ Meer opties</summary>
+      <div class="opt-grid">
+        <div class="opt">
+          <label for="pitchSlider">Toonhoogte <span id="pitchLabel">Normaal</span></label>
+          <input type="range" id="pitchSlider" min="0.7" max="1.3" step="0.05" value="1">
+        </div>
+        <div class="opt">
+          <label for="volumeSlider">Volume <span id="volumeLabel">100%</span></label>
+          <input type="range" id="volumeSlider" min="0.2" max="1" step="0.1" value="1">
+        </div>
+        <div class="opt">
+          <label for="pauseSelect">Pauze tussen zinnen</label>
+          <select id="pauseSelect">
+            <option value="0">Geen</option>
+            <option value="260" selected>Kort</option>
+            <option value="800">Middel</option>
+            <option value="1500">Lang</option>
+          </select>
+        </div>
+        <div class="opt">
+          <label for="spacingSelect">Regelafstand</label>
+          <select id="spacingSelect">
+            <option value="1.9" selected>Normaal</option>
+            <option value="2.4">Ruim</option>
+            <option value="3">Extra ruim</option>
+          </select>
+        </div>
+        <div class="opt">
+          <label for="themeSelect">Kleur van de tekst</label>
+          <select id="themeSelect">
+            <option value="green" selected>Groen</option>
+            <option value="white">Wit</option>
+            <option value="cream">Crème</option>
+            <option value="yellow">Geel</option>
+            <option value="dark">Donker</option>
+          </select>
+        </div>
+        <div class="opt opt-check">
+          <label><input type="checkbox" id="wordHighlight" checked> Woord voor woord markeren</label>
+        </div>
+      </div>
+      <button type="button" class="chip" id="btnResetOptions">↩️ Standaard instellingen</button>
+    </details>
   </div>
 
   <div class="card">

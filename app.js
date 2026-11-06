@@ -192,7 +192,8 @@
       : 'Hallo, ik ben ' + name + '. Zo klink ik als ik voorlees.');
     if (voice) utter.voice = voice;
     utter.rate = parseFloat(rateSlider.value);
-    utter.pitch = getChosenVoice() ? 1.0 : (GENDER_PITCH[genderPref] || 1.0);
+    utter.pitch = voicePitch();
+    utter.volume = parseFloat(getOpt('volume'));
     utter.lang = (voice && voice.lang) || FALLBACK_LANG[currentLang];
     speechSynthesis.speak(utter);
   }
@@ -231,6 +232,56 @@
   speedPresets.forEach(btn => {
     btn.addEventListener('click', () => setRate(parseFloat(btn.dataset.rate)));
   });
+
+  // ---- Meer opties ----
+  const pitchSlider = document.getElementById('pitchSlider');
+  const pitchLabel = document.getElementById('pitchLabel');
+  const volumeSlider = document.getElementById('volumeSlider');
+  const volumeLabel = document.getElementById('volumeLabel');
+  const pauseSelect = document.getElementById('pauseSelect');
+  const spacingSelect = document.getElementById('spacingSelect');
+  const themeSelect = document.getElementById('themeSelect');
+  const wordHighlight = document.getElementById('wordHighlight');
+  const OPT_DEFAULTS = { pitch: '1', volume: '1', pause: '260', spacing: '1.9', theme: 'green', words: '1' };
+
+  function getOpt(k){
+    try { return localStorage.getItem('vh_opt_' + k) || OPT_DEFAULTS[k]; } catch (e) { return OPT_DEFAULTS[k]; }
+  }
+  function setOpt(k, v){
+    try { localStorage.setItem('vh_opt_' + k, v); } catch (e) {}
+  }
+  function pitchMultiplier(){ return parseFloat(getOpt('pitch')) || 1; }
+  function voicePitch(){
+    const base = getChosenVoice() ? 1.0 : (GENDER_PITCH[genderPref] || 1.0);
+    return Math.min(2, Math.max(0.1, base * pitchMultiplier()));
+  }
+  function applyOptions(){
+    const pitch = parseFloat(getOpt('pitch'));
+    pitchSlider.value = pitch;
+    pitchLabel.textContent = pitch < 0.9 ? 'Lager' : pitch > 1.1 ? 'Hoger' : 'Normaal';
+    const vol = parseFloat(getOpt('volume'));
+    volumeSlider.value = vol;
+    volumeLabel.textContent = Math.round(vol * 100) + '%';
+    pauseSelect.value = getOpt('pause');
+    spacingSelect.value = getOpt('spacing');
+    themeSelect.value = getOpt('theme');
+    wordHighlight.checked = getOpt('words') === '1';
+    const root = document.documentElement;
+    root.style.setProperty('--read-line', getOpt('spacing'));
+    root.setAttribute('data-read-theme', getOpt('theme'));
+    if (wordHighlight.checked) root.removeAttribute('data-no-word-highlight');
+    else root.setAttribute('data-no-word-highlight', '');
+  }
+  [['pitch', pitchSlider, 'input'], ['volume', volumeSlider, 'input'], ['pause', pauseSelect, 'change'],
+   ['spacing', spacingSelect, 'change'], ['theme', themeSelect, 'change']].forEach(([k, el, ev]) => {
+    el.addEventListener(ev, () => { setOpt(k, el.value); applyOptions(); });
+  });
+  wordHighlight.addEventListener('change', () => { setOpt('words', wordHighlight.checked ? '1' : '0'); applyOptions(); });
+  document.getElementById('btnResetOptions').addEventListener('click', () => {
+    Object.keys(OPT_DEFAULTS).forEach(k => setOpt(k, OPT_DEFAULTS[k]));
+    applyOptions();
+  });
+  applyOptions();
 
   // ---- Text tools ----
   btnClear.addEventListener('click', () => {
@@ -359,7 +410,8 @@
     const voice = getSelectedVoice();
     if (voice) utter.voice = voice;
     utter.rate = parseFloat(rateSlider.value);
-    utter.pitch = getChosenVoice() ? 1.0 : (GENDER_PITCH[genderPref] || 1.0);
+    utter.pitch = voicePitch();
+    utter.volume = parseFloat(getOpt('volume'));
     utter.lang = (voice && voice.lang) || FALLBACK_LANG[currentLang];
 
     utter.onboundary = (e) => {
@@ -372,7 +424,7 @@
 
     utter.onend = () => {
       if (!isPlaying) return;
-      setTimeout(() => { if (isPlaying) speakSentence(i + 1); }, 260);
+      setTimeout(() => { if (isPlaying) speakSentence(i + 1); }, parseInt(getOpt('pause'), 10));
     };
     utter.onerror = () => {
       if (isPlaying) setTimeout(() => speakSentence(i + 1), 100);
