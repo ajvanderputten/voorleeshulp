@@ -184,7 +184,7 @@
   function playVoiceSample(){
     if (!('speechSynthesis' in window)) return;
     if (isPlaying || isPaused) stopPlayback();
-    speechSynthesis.cancel();
+    cancelSpeech();
     const voice = getSelectedVoice();
     const name = voice ? voice.name : (currentLang === 'en' ? 'your voice' : 'je stem');
     const utter = new SpeechSynthesisUtterance(currentLang === 'en'
@@ -286,7 +286,7 @@
   // ---- Text tools ----
   btnClear.addEventListener('click', () => {
     releaseWakeLock();
-    speechSynthesis.cancel();
+    cancelSpeech();
     isPlaying = false;
     isPaused = false;
     exitReadingMode();
@@ -320,6 +320,14 @@
   let currentIndex = -1;
   let isPaused = false;
   let isPlaying = false;
+  // Elke keer dat het voorlezen wordt onderbroken, verandert het token. Zo
+  // negeren de callbacks van een afgebroken zin (die in sommige browsers toch
+  // nog 'end' of 'error' melden) en gaat het niet dubbel of te ver door.
+  let playToken = 0;
+  function cancelSpeech(){
+    playToken++;
+    speechSynthesis.cancel();
+  }
 
   function splitSentences(text){
     const trimmed = text.trim();
@@ -406,6 +414,7 @@
     s.el.classList.add('current');
     s.el.scrollIntoView({ block: 'center', behavior: 'smooth' });
 
+    const token = playToken;
     const utter = new SpeechSynthesisUtterance(s.text);
     const voice = getSelectedVoice();
     if (voice) utter.voice = voice;
@@ -415,6 +424,7 @@
     utter.lang = (voice && voice.lang) || FALLBACK_LANG[currentLang];
 
     utter.onboundary = (e) => {
+      if (token !== playToken) return;
       if (e.name !== 'word' && e.charIndex === undefined) return;
       const word = s.words.find(w => e.charIndex >= w.start && e.charIndex < w.end) ||
                    s.words.find(w => e.charIndex <= w.start);
@@ -423,11 +433,12 @@
     };
 
     utter.onend = () => {
-      if (!isPlaying) return;
-      setTimeout(() => { if (isPlaying) speakSentence(i + 1); }, parseInt(getOpt('pause'), 10));
+      if (!isPlaying || token !== playToken) return;
+      setTimeout(() => { if (isPlaying && token === playToken) speakSentence(i + 1); }, parseInt(getOpt('pause'), 10));
     };
-    utter.onerror = () => {
-      if (isPlaying) setTimeout(() => speakSentence(i + 1), 100);
+    utter.onerror = (e) => {
+      if (e && (e.error === 'canceled' || e.error === 'interrupted')) return;
+      if (isPlaying && token === playToken) setTimeout(() => { if (isPlaying && token === playToken) speakSentence(i + 1); }, 100);
     };
 
     speechSynthesis.speak(utter);
@@ -472,7 +483,7 @@
     releaseWakeLock();
     isPlaying = false;
     isPaused = false;
-    speechSynthesis.cancel();
+    cancelSpeech();
     clearHighlights();
     currentIndex = -1;
     btnPlay.disabled = false;
@@ -509,14 +520,24 @@
   btnStop.addEventListener('click', stopPlayback);
 
   btnRestart.addEventListener('click', () => {
-    speechSynthesis.cancel();
+    cancelSpeech();
     isPaused = false;
     startPlayback(0);
   });
 
+  // Tik op een zin om vanaf daar verder te lezen.
+  readingView.addEventListener('click', (e) => {
+    const sEl = e.target.closest('.sentence');
+    if (!sEl) return;
+    const idx = sentenceEls.findIndex(s => s.el === sEl);
+    if (idx < 0) return;
+    cancelSpeech();
+    startPlayback(idx);
+  });
+
   btnEdit.addEventListener('click', () => {
     releaseWakeLock();
-    speechSynthesis.cancel();
+    cancelSpeech();
     isPlaying = false;
     isPaused = false;
     exitReadingMode();
@@ -766,7 +787,7 @@
         setOcrStatus('Geen tekst gevonden. Maak het kader om de tekst heen wat groter, of probeer een scherpere foto.', null, true);
       } else {
         releaseWakeLock();
-        speechSynthesis.cancel();
+        cancelSpeech();
         isPlaying = false; isPaused = false;
         exitReadingMode();
         btnPlay.disabled = false; btnPause.disabled = true; btnStop.disabled = true; btnRestart.disabled = true;
@@ -810,14 +831,20 @@
   }
 
   function persistSavedTexts(items){
-    localStorage.setItem('vh_savedTexts', JSON.stringify(items));
+    try {
+      localStorage.setItem('vh_savedTexts', JSON.stringify(items));
+      return true;
+    } catch (e) {
+      savedStatus.textContent = 'Bewaren is niet gelukt (opslag vol of uitgeschakeld).';
+      return false;
+    }
   }
 
   function openSavedText(id){
     const item = loadSavedTexts().find(i => i.id === id);
     if (!item) return;
     releaseWakeLock();
-    speechSynthesis.cancel();
+    cancelSpeech();
     isPlaying = false;
     isPaused = false;
     exitReadingMode();
@@ -888,9 +915,10 @@
     const name = saveNameInput.value.trim() || (text.slice(0, 28) + (text.length > 28 ? '…' : ''));
     const id = Date.now() + '-' + Math.random().toString(36).slice(2, 8);
     items.push({ id, name, text });
-    persistSavedTexts(items);
+    if (!persistSavedTexts(items)) return;
     saveNameInput.value = '';
     renderSavedList();
+    savedStatus.textContent += ' – bewaard ✅';
   });
 
   renderSavedList();
