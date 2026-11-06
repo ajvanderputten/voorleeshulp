@@ -177,8 +177,22 @@
             <option value="dark">Donker</option>
           </select>
         </div>
+        <div class="opt">
+          <label for="letterSelect">Letterafstand</label>
+          <select id="letterSelect">
+            <option value="0" selected>Normaal</option>
+            <option value="0.06em">Ruim</option>
+            <option value="0.12em">Extra ruim</option>
+          </select>
+        </div>
         <div class="opt opt-check">
           <label><input type="checkbox" id="wordHighlight" checked> Woord voor woord markeren</label>
+        </div>
+        <div class="opt opt-check">
+          <label><input type="checkbox" id="focusMode"> Leesfocus (andere zinnen vager)</label>
+        </div>
+        <div class="opt opt-check">
+          <label><input type="checkbox" id="loopMode"> Tekst blijven herhalen</label>
         </div>
       </div>
       <button type="button" class="chip" id="btnResetOptions">↩️ Standaard instellingen</button>

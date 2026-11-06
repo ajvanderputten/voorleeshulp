@@ -1,6 +1,6 @@
 (function(){
   // Verhoog dit nummer bij elke wijziging, samen met VERSION in sw.js.
-  const APP_VERSION = '1.4.0';
+  const APP_VERSION = '1.5.0';
   document.getElementById('appVersion').textContent = APP_VERSION;
   const textInput = document.getElementById('textInput');
   const readingView = document.getElementById('readingView');
@@ -272,7 +272,10 @@
   const spacingSelect = document.getElementById('spacingSelect');
   const themeSelect = document.getElementById('themeSelect');
   const wordHighlight = document.getElementById('wordHighlight');
-  const OPT_DEFAULTS = { pitch: '1', volume: '1', pause: '260', spacing: '1.9', theme: 'green', words: '1' };
+  const letterSelect = document.getElementById('letterSelect');
+  const focusMode = document.getElementById('focusMode');
+  const loopMode = document.getElementById('loopMode');
+  const OPT_DEFAULTS = { pitch: '1', volume: '1', pause: '260', spacing: '1.9', theme: 'green', words: '1', letter: '0', focus: '0', loop: '0' };
 
   function getOpt(k){
     try { return localStorage.getItem('vh_opt_' + k) || OPT_DEFAULTS[k]; } catch (e) { return OPT_DEFAULTS[k]; }
@@ -296,16 +299,23 @@
     spacingSelect.value = getOpt('spacing');
     themeSelect.value = getOpt('theme');
     wordHighlight.checked = getOpt('words') === '1';
+    letterSelect.value = getOpt('letter');
+    focusMode.checked = getOpt('focus') === '1';
+    loopMode.checked = getOpt('loop') === '1';
     const root = document.documentElement;
     root.style.setProperty('--read-line', getOpt('spacing'));
+    root.style.setProperty('--read-letter', getOpt('letter'));
+    if (focusMode.checked) root.setAttribute('data-focus', ''); else root.removeAttribute('data-focus');
     root.setAttribute('data-read-theme', getOpt('theme'));
     if (wordHighlight.checked) root.removeAttribute('data-no-word-highlight');
     else root.setAttribute('data-no-word-highlight', '');
   }
   [['pitch', pitchSlider, 'input'], ['volume', volumeSlider, 'input'], ['pause', pauseSelect, 'change'],
-   ['spacing', spacingSelect, 'change'], ['theme', themeSelect, 'change']].forEach(([k, el, ev]) => {
+   ['spacing', spacingSelect, 'change'], ['theme', themeSelect, 'change'], ['letter', letterSelect, 'change']].forEach(([k, el, ev]) => {
     el.addEventListener(ev, () => { setOpt(k, el.value); applyOptions(); });
   });
+  focusMode.addEventListener('change', () => { setOpt('focus', focusMode.checked ? '1' : '0'); applyOptions(); });
+  loopMode.addEventListener('change', () => { setOpt('loop', loopMode.checked ? '1' : '0'); });
   wordHighlight.addEventListener('change', () => { setOpt('words', wordHighlight.checked ? '1' : '0'); applyOptions(); });
   document.getElementById('btnResetOptions').addEventListener('click', () => {
     Object.keys(OPT_DEFAULTS).forEach(k => setOpt(k, OPT_DEFAULTS[k]));
@@ -422,16 +432,21 @@
   }
   function exitReadingMode(){
     textInput.classList.remove('hidden');
-    readingView.classList.remove('active');
+    readingView.classList.remove('active', 'playing');
     btnEdit.style.display = 'none';
   }
 
   function speakSentence(i){
     if (i >= sentenceEls.length) {
+      if (getOpt('loop') === '1' && isPlaying && sentenceEls.length) {
+        setTimeout(() => { if (isPlaying) speakSentence(0); }, Math.max(parseInt(getOpt('pause'), 10), 800));
+        return;
+      }
       finishPlayback();
       return;
     }
     currentIndex = i;
+    readingView.classList.add('playing');
     clearHighlights();
     const s = sentenceEls[i];
     s.el.classList.add('current');
@@ -492,6 +507,7 @@
   }
 
   function finishPlayback(){
+    readingView.classList.remove('playing');
     releaseWakeLock();
     isPlaying = false;
     isPaused = false;
@@ -503,6 +519,7 @@
   }
 
   function stopPlayback(){
+    readingView.classList.remove('playing');
     releaseWakeLock();
     isPlaying = false;
     isPaused = false;
