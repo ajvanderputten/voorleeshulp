@@ -141,6 +141,7 @@
 
     <details class="options" id="optionsBox">
       <summary>⚙️ Meer opties</summary>
+      <h3 class="opt-group">🔊 Stem</h3>
       <div class="opt-grid">
         <div class="opt">
           <label for="pitchSlider">Toonhoogte <span id="pitchLabel">Normaal</span></label>
@@ -150,6 +151,9 @@
           <label for="volumeSlider">Volume <span id="volumeLabel">100%</span></label>
           <input type="range" id="volumeSlider" min="0.2" max="1" step="0.1" value="1">
         </div>
+      </div>
+      <h3 class="opt-group">📖 Voorlezen</h3>
+      <div class="opt-grid">
         <div class="opt">
           <label for="pauseSelect">Pauze tussen zinnen</label>
           <select id="pauseSelect">
@@ -159,14 +163,12 @@
             <option value="1500">Lang</option>
           </select>
         </div>
-        <div class="opt">
-          <label for="spacingSelect">Regelafstand</label>
-          <select id="spacingSelect">
-            <option value="1.9" selected>Normaal</option>
-            <option value="2.4">Ruim</option>
-            <option value="3">Extra ruim</option>
-          </select>
+        <div class="opt opt-check">
+          <label><input type="checkbox" id="loopMode"> Tekst blijven herhalen</label>
         </div>
+      </div>
+      <h3 class="opt-group">🎨 Uiterlijk van de tekst</h3>
+      <div class="opt-grid">
         <div class="opt">
           <label for="themeSelect">Kleur van de tekst</label>
           <select id="themeSelect">
@@ -175,6 +177,14 @@
             <option value="cream">Crème</option>
             <option value="yellow">Geel</option>
             <option value="dark">Donker</option>
+          </select>
+        </div>
+        <div class="opt">
+          <label for="spacingSelect">Regelafstand</label>
+          <select id="spacingSelect">
+            <option value="1.9" selected>Normaal</option>
+            <option value="2.4">Ruim</option>
+            <option value="3">Extra ruim</option>
           </select>
         </div>
         <div class="opt">
@@ -190,9 +200,6 @@
         </div>
         <div class="opt opt-check">
           <label><input type="checkbox" id="focusMode"> Leesfocus (andere zinnen vager)</label>
-        </div>
-        <div class="opt opt-check">
-          <label><input type="checkbox" id="loopMode"> Tekst blijven herhalen</label>
         </div>
       </div>
       <button type="button" class="chip" id="btnResetOptions">↩️ Standaard instellingen</button>

@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { detectLang, splitSentences, isNatural } = require('../text-utils.js');
+const { detectLang, splitSentences, isNatural, joinOcrLines, ocrToText } = require('../text-utils.js');
 
 test('splitst meerdere zinnen op één regel', () => {
   assert.deepEqual(splitSentences('Hallo. Dag allemaal! Tot ziens?'), ['Hallo.', 'Dag allemaal!', 'Tot ziens?']);
@@ -77,4 +77,40 @@ test('sw.js cachet text-utils.js en index.html laadt het vóór app.js', () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
   assert.match(sw, /'text-utils\.js'/);
   assert.ok(html.indexOf('text-utils.js') > -1 && html.indexOf('text-utils.js') < html.indexOf('src="app.js"'));
+});
+
+const w = (text, confidence = 95) => ({ text, confidence });
+const line = (s, confidence = 95) => ({ confidence, words: s.split(' ').map(t => w(t)) });
+
+test('joinOcrLines plakt regels van een alinea aan elkaar', () => {
+  assert.equal(joinOcrLines(['Er was eens een klein', 'konijntje dat Timo heette.']),
+    'Er was eens een klein konijntje dat Timo heette.');
+});
+
+test('joinOcrLines herstelt afgebroken woorden', () => {
+  assert.equal(joinOcrLines(['Er was eens een klein konijn-', 'tje dat Timo heette.']),
+    'Er was eens een klein konijntje dat Timo heette.');
+  // Koppelteken voor een hoofdletter blijft staan.
+  assert.equal(joinOcrLines(['Het was in Noord-', 'Holland heel mooi weer.']),
+    'Het was in Noord-Holland heel mooi weer.');
+});
+
+test('joinOcrLines houdt een titel op een eigen regel', () => {
+  assert.equal(joinOcrLines(['Hoofdstuk 1', 'Timo woonde in een knus holletje onder de boom.']),
+    'Hoofdstuk 1\nTimo woonde in een knus holletje onder de boom.');
+});
+
+test('ocrToText maakt één regel per alinea en laat ruis weg', () => {
+  const data = { paragraphs: [
+    { lines: [line('Er was eens een klein'), line('konijntje.')] },
+    { lines: [{ confidence: 30, words: [w('@#', 30)] }] },
+    { lines: [line('Hij at graag'), line('verse klaver.')] }
+  ] };
+  assert.equal(ocrToText(data), 'Er was eens een klein konijntje.\nHij at graag verse klaver.');
+  assert.deepEqual(splitSentences(ocrToText(data)), ['Er was eens een klein konijntje.', 'Hij at graag verse klaver.']);
+});
+
+test('ocrToText werkt ook zonder alinea-informatie', () => {
+  assert.equal(ocrToText({ lines: [line('Een'), line('zin.')] }), 'Een zin.');
+  assert.equal(ocrToText({}), '');
 });

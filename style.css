@@ -222,3 +222,5 @@ html[data-no-word-highlight] .reading-view .word.current { background: none; }
 
 .version { opacity:.7; }
 html[data-focus] .reading-view.playing .sentence:not(.current) { opacity: .35; }
+.opt-group { margin: 16px 0 0; font-size: 1rem; color: var(--purple); }
+.opt-group + .opt-grid { margin-top: 6px; }
