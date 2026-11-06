@@ -4,6 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Voorleeshulp</title>
+<meta name="theme-color" content="#931b80">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Voorleeshulp">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -33,6 +41,14 @@
         <span class="emoji">👨</span> Mannenstem
       </button>
     </div>
+    <div class="voice-pick">
+      <label for="voiceSelect">Kies een stem</label>
+      <div class="voice-pick-row">
+        <select id="voiceSelect"></select>
+        <button type="button" id="btnVoiceTest" class="chip">🔊 Luister proef</button>
+      </div>
+      <p class="hint" id="voiceHint"></p>
+    </div>
   </div>
 
   <div class="card">
@@ -45,8 +61,20 @@
       <input type="file" id="fileInput" accept="image/*" hidden>
     </div>
     <div class="scan-preview" id="scanPreview">
-      <img id="scanImg" alt="Gekozen foto">
-      <button type="button" id="btnRemoveScan" class="chip">✖ Verwijderen</button>
+      <p class="hint">Sleep het kader om alleen de tekst te kiezen (laat plaatjes en kaders weg). Tik daarna op <strong>Tekst lezen</strong>.</p>
+      <div class="crop-stage" id="cropStage">
+        <img id="scanImg" alt="Gekozen foto" draggable="false">
+        <div class="crop-box" id="cropBox">
+          <span class="crop-handle" data-h="nw"></span><span class="crop-handle" data-h="n"></span><span class="crop-handle" data-h="ne"></span>
+          <span class="crop-handle" data-h="w"></span><span class="crop-handle" data-h="e"></span>
+          <span class="crop-handle" data-h="sw"></span><span class="crop-handle" data-h="s"></span><span class="crop-handle" data-h="se"></span>
+        </div>
+      </div>
+      <div class="scan-row crop-actions">
+        <button type="button" id="btnReadCrop" class="scan-btn primary">🔍 Tekst lezen</button>
+        <button type="button" id="btnFullImage" class="chip">↔ Hele foto</button>
+        <button type="button" id="btnRemoveScan" class="chip">✖ Verwijderen</button>
+      </div>
     </div>
     <div class="ocr-progress" id="ocrProgressWrap">
       <div class="ocr-bar"><div class="ocr-bar-fill" id="ocrBarFill"></div></div>
