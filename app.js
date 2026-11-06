@@ -398,32 +398,86 @@
     setOcrStatus('', null);
   }
 
-  function resizeImageIfNeeded(file){
+  // Verbetert de foto voor tekstherkenning: schaalt naar een goede grootte,
+  // maakt grijs en rekt het contrast op. Dat geeft minder ruis en dus minder
+  // losse leestekens.
+  function preprocessImage(file){
     return new Promise((resolve) => {
       const img = new Image();
       const url = URL.createObjectURL(file);
       img.onload = () => {
-        const maxDim = 1800;
-        const { width, height } = img;
-        if (Math.max(width, height) <= maxDim) {
+        try {
+          const { width, height } = img;
+          const longest = Math.max(width, height);
+          const target = Math.min(2400, Math.max(1600, longest));
+          const scale = target / longest;
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.round(width * scale);
+          canvas.height = Math.round(height * scale);
+          const ctx = canvas.getContext('2d', { willReadFrequently: true });
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const px = data.data;
+          const hist = new Array(256).fill(0);
+          for (let i = 0; i < px.length; i += 4) {
+            const g = Math.round(0.299 * px[i] + 0.587 * px[i+1] + 0.114 * px[i+2]);
+            px[i] = g; hist[g]++;
+          }
+          const total = px.length / 4;
+          let low = 0, high = 255, acc = 0;
+          for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc >= total * 0.01) { low = v; break; } }
+          acc = 0;
+          for (let v = 255; v >= 0; v--) { acc += hist[v]; if (acc >= total * 0.01) { high = v; break; } }
+          const range = Math.max(1, high - low);
+          for (let i = 0; i < px.length; i += 4) {
+            const v = Math.max(0, Math.min(255, Math.round((px[i] - low) * 255 / range)));
+            px[i] = px[i+1] = px[i+2] = v;
+          }
+          ctx.putImageData(data, 0, 0);
+          canvas.toBlob((blob) => {
+            URL.revokeObjectURL(url);
+            resolve(blob || file);
+          }, 'image/png');
+        } catch (e) {
           URL.revokeObjectURL(url);
           resolve(file);
-          return;
         }
-        const scale = maxDim / Math.max(width, height);
-        const canvas = document.createElement('canvas');
-        canvas.width = Math.round(width * scale);
-        canvas.height = Math.round(height * scale);
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        canvas.toBlob((blob) => {
-          URL.revokeObjectURL(url);
-          resolve(blob || file);
-        }, 'image/jpeg', 0.92);
       };
       img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
       img.src = url;
     });
+  }
+
+  // Haalt ruis uit het OCR-resultaat: woorden en regels met lage zekerheid
+  // (meestal plaatjes, pictogrammen of schaduwen) vallen weg, en losse
+  // leestekens worden opgeruimd.
+  function cleanOcrResult(data){
+    const keepWord = (w) => {
+      const t = (w.text || '').trim();
+      if (!t) return false;
+      const letters = (t.match(/[\p{L}\p{N}]/gu) || []).length;
+      if (letters === 0) return false;
+      if (letters < t.length * 0.5) return false;
+      if (letters === 1 && t.length > 1 && w.confidence < 80) return false;
+      return w.confidence >= 55;
+    };
+    const lines = [];
+    for (const line of (data.lines || [])) {
+      const words = (line.words || []).filter(keepWord).map(w => w.text.trim());
+      if (!words.length) continue;
+      const joined = words.join(' ');
+      const letters = (joined.match(/\p{L}/gu) || []).length;
+      if (letters < 3 && line.confidence < 80) continue;
+      lines.push(joined);
+    }
+    return lines.join('\n')
+      .replace(/[|\\_~^`<>{}\[\]=*#@§©®™°•·¬]+/g, ' ')
+      .replace(/([.,;:!?\-–])\1+/g, '$1')
+      .replace(/\s+([.,;:!?])/g, '$1')
+      .replace(/[ \t]{2,}/g, ' ')
+      .replace(/^[ \t]*[-–.,;:]+[ \t]+/gm, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
   }
 
   async function runOCR(file){
@@ -437,14 +491,14 @@
     showPreview(file);
     setOcrStatus('Voorbereiden...', 0);
     try {
-      const processed = await resizeImageIfNeeded(file);
+      const processed = await preprocessImage(file);
       const result = await Tesseract.recognize(processed, 'nld', {
         logger: (m) => {
           const label = OCR_STATUS_LABELS[m.status] || 'Bezig...';
           setOcrStatus(label, typeof m.progress === 'number' ? m.progress : 0);
         }
       });
-      const text = (result.data.text || '').trim();
+      const text = cleanOcrResult(result.data);
       if (!text) {
         setOcrStatus('Geen tekst gevonden. Probeer een duidelijkere of scherpere foto.', null, true);
       } else {
