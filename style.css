@@ -94,10 +94,10 @@ textarea.hidden { display: none; }
 .reading-view {
   display: none; font-size: var(--read-size, 26px); line-height: var(--read-line, 1.9);
   padding: 20px; border-radius: 16px; background: var(--read-bg, var(--soft-green));
-  border: 3px solid var(--read-border, var(--green)); min-height: 180px; color: var(--read-text, var(--text));
+  border: 3px solid var(--read-border, var(--green)); min-height: 180px; color: var(--read-text, var(--text)); letter-spacing: var(--read-letter, 0);
 }
 .reading-view.active { display: block; }
-.reading-view .sentence { cursor: pointer; transition: background .15s ease; border-radius: 6px; padding: 0 2px; }
+.reading-view .sentence { cursor: pointer; transition: background .15s ease, opacity .2s ease; border-radius: 6px; padding: 0 2px; }
 .reading-view .sentence.current { background: var(--read-sentence, var(--highlight-sentence)); }
 .reading-view .word.current { background: var(--read-word, var(--highlight-word)); border-radius: 4px; padding: 0 2px; }
 
@@ -221,3 +221,4 @@ html[data-no-word-highlight] .reading-view .word.current { background: none; }
 #langSelect { width:100%; margin-bottom:10px; }
 
 .version { opacity:.7; }
+html[data-focus] .reading-view.playing .sentence:not(.current) { opacity: .35; }
