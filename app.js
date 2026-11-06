@@ -54,9 +54,16 @@
 
   let girlVoice = null, boyVoice = null;
 
+  function voiceLang(v){
+    return (v.lang || '').toLowerCase().replace('_', '-');
+  }
+
   function getDutchVoicePool(){
-    // Alleen Nederlandse stemmen; als een apparaat er geen enkele heeft, vallen we terug op alles zodat de app blijft werken.
-    const dutch = voices.filter(v => v.lang.toLowerCase().startsWith('nl'));
+    // Voorkeur voor Nederlands uit Nederland (nl-NL), zodat er geen Vlaamse stem (nl-BE) gekozen wordt.
+    // Alleen als er geen nl-NL stem is, vallen we terug op andere Nederlandse stemmen, en daarna op alles zodat de app blijft werken.
+    const dutch = voices.filter(v => voiceLang(v).startsWith('nl'));
+    const nlNL = dutch.filter(v => !voiceLang(v).startsWith('nl-be'));
+    if (nlNL.length) return nlNL;
     return dutch.length ? dutch : voices;
   }
 
