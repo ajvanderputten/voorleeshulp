@@ -1,6 +1,6 @@
 (function(){
   // Verhoog dit nummer bij elke wijziging, samen met VERSION in sw.js.
-  const APP_VERSION = '1.5.1';
+  const APP_VERSION = '1.6.0';
   document.getElementById('appVersion').textContent = APP_VERSION;
   const textInput = document.getElementById('textInput');
   const readingView = document.getElementById('readingView');
@@ -65,7 +65,7 @@
   let girlVoice = null, boyVoice = null;
 
   // Taal van de tekst: Nederlands of Engels, geraden aan veelvoorkomende woorden.
-  const { splitSentences, detectLang, isNatural } = window.TextUtils;
+  const { splitSentences, detectLang, isNatural, ocrToText } = window.TextUtils;
   let currentLang = 'nl';
 
   const langSelect = document.getElementById('langSelect');
@@ -738,8 +738,9 @@
   }
 
   // Verbetert de foto voor tekstherkenning: schaalt naar een goede grootte,
-  // maakt grijs en rekt het contrast op. Dat geeft minder ruis en dus minder
-  // losse leestekens.
+  // maakt grijs, haalt schaduw en ongelijk licht weg (de achtergrond wordt
+  // overal even licht) en rekt daarna het contrast op. Dat geeft minder ruis
+  // en dus minder fouten en losse leestekens.
   function preprocessImage(file, area){
     return new Promise((resolve) => {
       const img = new Image();
@@ -753,26 +754,35 @@
           const target = Math.min(2400, Math.max(1600, longest));
           const scale = target / longest;
           const canvas = document.createElement('canvas');
-          canvas.width = Math.round(sw * scale);
-          canvas.height = Math.round(sh * scale);
+          const W = canvas.width = Math.round(sw * scale);
+          const H = canvas.height = Math.round(sh * scale);
           const ctx = canvas.getContext('2d', { willReadFrequently: true });
-          ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
-          const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, sx, sy, sw, sh, 0, 0, W, H);
+          const data = ctx.getImageData(0, 0, W, H);
           const px = data.data;
-          const hist = new Array(256).fill(0);
-          for (let i = 0; i < px.length; i += 4) {
-            const g = Math.round(0.299 * px[i] + 0.587 * px[i+1] + 0.114 * px[i+2]);
-            px[i] = g; hist[g]++;
+          const n = W * H;
+          const gray = new Uint8ClampedArray(n);
+          let sum = 0;
+          for (let i = 0, j = 0; j < n; i += 4, j++) {
+            gray[j] = 0.299 * px[i] + 0.587 * px[i+1] + 0.114 * px[i+2];
+            sum += gray[j];
           }
-          const total = px.length / 4;
+          // Lichte tekst op een donkere achtergrond eerst omdraaien.
+          if (sum / n < 110) for (let j = 0; j < n; j++) gray[j] = 255 - gray[j];
+
+          normalizeBackground(gray, W, H);
+
+          const hist = new Array(256).fill(0);
+          for (let j = 0; j < n; j++) hist[gray[j]]++;
           let low = 0, high = 255, acc = 0;
-          for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc >= total * 0.01) { low = v; break; } }
+          for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc >= n * 0.01) { low = v; break; } }
           acc = 0;
-          for (let v = 255; v >= 0; v--) { acc += hist[v]; if (acc >= total * 0.01) { high = v; break; } }
+          for (let v = 255; v >= 0; v--) { acc += hist[v]; if (acc >= n * 0.01) { high = v; break; } }
           const range = Math.max(1, high - low);
-          for (let i = 0; i < px.length; i += 4) {
-            const v = Math.max(0, Math.min(255, Math.round((px[i] - low) * 255 / range)));
+          for (let i = 0, j = 0; j < n; i += 4, j++) {
+            const v = Math.max(0, Math.min(255, Math.round((gray[j] - low) * 255 / range)));
             px[i] = px[i+1] = px[i+2] = v;
+            px[i+3] = 255;
           }
           ctx.putImageData(data, 0, 0);
           canvas.toBlob((blob) => {
@@ -789,36 +799,68 @@
     });
   }
 
-  // Haalt ruis uit het OCR-resultaat: woorden en regels met lage zekerheid
-  // (meestal plaatjes, pictogrammen of schaduwen) vallen weg, en losse
-  // leestekens worden opgeruimd.
-  function cleanOcrResult(data){
-    const keepWord = (w) => {
-      const t = (w.text || '').trim();
-      if (!t) return false;
-      const letters = (t.match(/[\p{L}\p{N}]/gu) || []).length;
-      if (letters === 0) return false;
-      if (letters < t.length * 0.5) return false;
-      if (letters === 1 && t.length > 1 && w.confidence < 80) return false;
-      return w.confidence >= 55;
-    };
-    const lines = [];
-    for (const line of (data.lines || [])) {
-      const words = (line.words || []).filter(keepWord).map(w => w.text.trim());
-      if (!words.length) continue;
-      const joined = words.join(' ');
-      const letters = (joined.match(/\p{L}/gu) || []).length;
-      if (letters < 3 && line.confidence < 80) continue;
-      lines.push(joined);
+  // Schat de achtergrond (het papier) op een verkleinde kopie: het lichtste
+  // punt in de buurt (de donkere letters vallen zo weg), daarna uitgesmeerd.
+  // Elke pixel wordt gedeeld door die achtergrond, zodat papier in de schaduw
+  // net zo wit wordt als papier in het licht.
+  function normalizeBackground(gray, W, H){
+    const f = 8;
+    const w = Math.max(1, Math.ceil(W / f)), h = Math.max(1, Math.ceil(H / f));
+    const small = new Float32Array(w * h);
+    for (let y = 0; y < H; y++) {
+      const row = (y / f | 0) * w;
+      for (let x = 0; x < W; x++) {
+        const k = row + (x / f | 0);
+        const g = gray[y * W + x];
+        if (g > small[k]) small[k] = g;
+      }
     }
-    return lines.join('\n')
-      .replace(/[|\\_~^`<>{}\[\]=*#@§©®™°•·¬]+/g, ' ')
-      .replace(/([.,;:!?\-–])\1+/g, '$1')
-      .replace(/\s+([.,;:!?])/g, '$1')
-      .replace(/[ \t]{2,}/g, ' ')
-      .replace(/^[ \t]*[-–.,;:]+[ \t]+/gm, '')
-      .replace(/\n{3,}/g, '\n\n')
-      .trim();
+    const pass = (src, r, useMax) => {
+      const tmp = new Float32Array(w * h), out = new Float32Array(w * h);
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        let v = 0, c = 0;
+        for (let d = -r; d <= r; d++) {
+          const xx = Math.min(w - 1, Math.max(0, x + d));
+          const s = src[y * w + xx];
+          if (useMax) { if (s > v) v = s; } else { v += s; c++; }
+        }
+        tmp[y * w + x] = useMax ? v : v / c;
+      }
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        let v = 0, c = 0;
+        for (let d = -r; d <= r; d++) {
+          const yy = Math.min(h - 1, Math.max(0, y + d));
+          const s = tmp[yy * w + x];
+          if (useMax) { if (s > v) v = s; } else { v += s; c++; }
+        }
+        out[y * w + x] = useMax ? v : v / c;
+      }
+      return out;
+    };
+    const bg = pass(pass(small, 2, true), 3, false);
+    for (let y = 0; y < H; y++) {
+      const fy = Math.min(h - 1, y / f);
+      const y0 = fy | 0, y1 = Math.min(h - 1, y0 + 1), ty = fy - y0;
+      for (let x = 0; x < W; x++) {
+        const fx = Math.min(w - 1, x / f);
+        const x0 = fx | 0, x1 = Math.min(w - 1, x0 + 1), tx = fx - x0;
+        const b = (bg[y0 * w + x0] * (1 - tx) + bg[y0 * w + x1] * tx) * (1 - ty)
+                + (bg[y1 * w + x0] * (1 - tx) + bg[y1 * w + x1] * tx) * ty;
+        const j = y * W + x;
+        gray[j] = b > 8 ? gray[j] * 255 / b : gray[j];
+      }
+    }
+  }
+
+  // De tekstherkenning wordt één keer opgestart en daarna hergebruikt,
+  // zodat een tweede foto veel sneller gelezen wordt.
+  let ocrWorker = null, ocrWorkerLang = '', ocrLogger = null;
+  async function getOcrWorker(lang){
+    if (ocrWorker && ocrWorkerLang === lang) return ocrWorker;
+    if (ocrWorker) { try { await ocrWorker.terminate(); } catch (e) {} ocrWorker = null; }
+    ocrWorker = await Tesseract.createWorker(lang, 1, { logger: (m) => { if (ocrLogger) ocrLogger(m); } });
+    ocrWorkerLang = lang;
+    return ocrWorker;
   }
 
   async function runOCR(file){
@@ -832,13 +874,13 @@
     setOcrStatus('Voorbereiden...', 0);
     try {
       const processed = await preprocessImage(file, { ...crop });
-      const result = await Tesseract.recognize(processed, langPref === 'en' ? 'eng' : langPref === 'nl' ? 'nld' : 'nld+eng', {
-        logger: (m) => {
-          const label = OCR_STATUS_LABELS[m.status] || 'Bezig...';
-          setOcrStatus(label, typeof m.progress === 'number' ? m.progress : 0);
-        }
-      });
-      const text = cleanOcrResult(result.data);
+      ocrLogger = (m) => {
+        const label = OCR_STATUS_LABELS[m.status] || 'Bezig...';
+        setOcrStatus(label, typeof m.progress === 'number' ? m.progress : 0);
+      };
+      const worker = await getOcrWorker(langPref === 'en' ? 'eng' : langPref === 'nl' ? 'nld' : 'nld+eng');
+      const result = await worker.recognize(processed);
+      const text = ocrToText(result.data);
       if (!text) {
         setOcrStatus('Geen tekst gevonden. Maak het kader om de tekst heen wat groter, of probeer een scherpere foto.', null, true);
       } else {
@@ -854,8 +896,10 @@
         textInput.scrollIntoView({ block: 'center', behavior: 'smooth' });
       }
     } catch (err) {
+      if (ocrWorker) { try { ocrWorker.terminate(); } catch (e) {} ocrWorker = null; }
       setOcrStatus('Kon de tekst niet herkennen. Controleer je internetverbinding en probeer opnieuw.', null, true);
     } finally {
+      ocrLogger = null;
       ocrBusy = false;
       setScanControlsDisabled(false);
     }

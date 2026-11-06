@@ -59,7 +59,75 @@
     return /natural|neural|premium|enhanced|siri|google|online/i.test((voice && voice.name) || '');
   }
 
-  const api = { detectLang, splitSentences, isNatural };
+  // ---- Tekst uit tekstherkenning (OCR) netjes maken ----
+  // Woorden en regels met lage zekerheid (meestal plaatjes, pictogrammen of
+  // schaduwen) vallen weg en losse leestekens worden opgeruimd.
+  function keepOcrWord(w){
+    const t = ((w && w.text) || '').trim();
+    if (!t) return false;
+    const letters = (t.match(/[\p{L}\p{N}]/gu) || []).length;
+    if (letters === 0) return false;
+    if (letters < t.length * 0.5) return false;
+    if (letters === 1 && t.length > 1 && w.confidence < 80) return false;
+    return w.confidence >= 55;
+  }
+
+  function cleanOcrLine(line){
+    const words = (line.words || []).filter(keepOcrWord).map(w => w.text.trim());
+    if (!words.length) return '';
+    const joined = words.join(' ');
+    const letters = (joined.match(/\p{L}/gu) || []).length;
+    if (letters < 3 && line.confidence < 80) return '';
+    return joined
+      .replace(/[|\\_~^`<>{}\[\]=*#@§©®™°•·¬]+/g, ' ')
+      .replace(/([.,;:!?\-–])\1+/g, '$1')
+      .replace(/\s+([.,;:!?])/g, '$1')
+      .replace(/[ \t]{2,}/g, ' ')
+      .replace(/^[ \t]*[.,;:]+[ \t]*/, '')
+      .trim();
+  }
+
+  // Plakt de afgedrukte regels van één alinea weer aan elkaar, zodat een zin
+  // die over twee regels loopt niet als twee zinnen wordt voorgelezen.
+  // Een afgebroken woord ("konijn-" + "tje") wordt weer één woord;
+  // "Noord-" + "Holland" houdt het koppelteken.
+  // Een korte regel zonder leesteken gevolgd door een hoofdletter is meestal
+  // een titel: die blijft een eigen regel.
+  function joinOcrLines(lines){
+    const ls = lines.map(l => l.trim()).filter(Boolean);
+    if (!ls.length) return '';
+    const longest = Math.max(...ls.map(l => l.length));
+    let out = ls[0];
+    for (let i = 1; i < ls.length; i++) {
+      const prev = ls[i - 1], next = ls[i];
+      if (/\p{L}[-‐­]$/u.test(prev) && /^\p{Ll}/u.test(next)) {
+        out = out.replace(/[-‐­]$/u, '') + next;
+      } else if (/\p{L}-$/u.test(prev) && /^\p{Lu}/u.test(next)) {
+        out += next;
+      } else if (!/[.!?:;,"'”’)]$/.test(prev) && /^[\p{Lu}\p{N}]/u.test(next) && prev.length < longest * 0.6) {
+        out += '\n' + next;
+      } else {
+        out += ' ' + next;
+      }
+    }
+    return out;
+  }
+
+  // Zet het resultaat van Tesseract om in voorleesbare tekst: één regel per alinea.
+  function ocrToText(data){
+    const paragraphs = (data && data.paragraphs && data.paragraphs.length)
+      ? data.paragraphs
+      : [{ lines: (data && data.lines) || [] }];
+    return paragraphs
+      .map(p => joinOcrLines((p.lines || []).map(cleanOcrLine)))
+      .filter(Boolean)
+      .join('\n')
+      .replace(/^[ \t]*[-–][ \t]+/gm, '– ')
+      .replace(/\n{2,}/g, '\n')
+      .trim();
+  }
+
+  const api = { detectLang, splitSentences, isNatural, joinOcrLines, ocrToText };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.TextUtils = api;
 })(typeof window !== 'undefined' ? window : globalThis);
