@@ -58,11 +58,18 @@
       </button>
     </div>
     <div class="voice-pick">
+      <label for="langSelect">Taal van de tekst</label>
+      <select id="langSelect">
+        <option value="auto" selected>Automatisch herkennen</option>
+        <option value="nl">🇳🇱 Nederlands</option>
+        <option value="en">🇬🇧 Engels</option>
+      </select>
       <label for="voiceSelect">Kies een stem</label>
       <div class="voice-pick-row">
         <select id="voiceSelect"></select>
         <button type="button" id="btnVoiceTest" class="chip">🔊 Luister proef</button>
       </div>
+      <label class="show-all"><input type="checkbox" id="showAllVoices"> Toon stemmen in alle talen</label>
       <p class="hint" id="voiceHint"></p>
     </div>
   </div>
@@ -187,7 +194,7 @@
     <div class="status" id="savedStatus"></div>
   </div>
 
-  <footer><button type="button" class="chip" id="btnShowInstall" hidden>📲 Zet op beginscherm</button><br>Deze app gebruikt de spraakstem van je eigen apparaat — er wordt niets naar internet gestuurd.</footer>
+  <footer><button type="button" class="chip" id="btnShowInstall" hidden>📲 Zet op beginscherm</button><br>Deze app gebruikt de spraakstem van je eigen apparaat — er wordt niets naar internet gestuurd.<br><small class="version">Versie <span id="appVersion">?</span></small></footer>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js" integrity="sha384-GJqSu7vueQ9qN0E9yLPb3Wtpd7OrgK8KmYzC8T1IysG1bcvxvIO4qtYR/D3A991F" crossorigin="anonymous"></script>

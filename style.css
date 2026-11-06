@@ -97,7 +97,7 @@ textarea.hidden { display: none; }
   border: 3px solid var(--read-border, var(--green)); min-height: 180px; color: var(--read-text, var(--text));
 }
 .reading-view.active { display: block; }
-.reading-view .sentence { transition: background .15s ease; border-radius: 6px; padding: 0 2px; }
+.reading-view .sentence { cursor: pointer; transition: background .15s ease; border-radius: 6px; padding: 0 2px; }
 .reading-view .sentence.current { background: var(--read-sentence, var(--highlight-sentence)); }
 .reading-view .word.current { background: var(--read-word, var(--highlight-word)); border-radius: 4px; padding: 0 2px; }
 
@@ -216,3 +216,8 @@ html[data-no-word-highlight] .reading-view .word.current { background: none; }
 .install-steps { margin: 0; padding-left: 1.4em; font-size: 1rem; line-height: 1.6; }
 .install-steps li { margin-bottom: 8px; }
 #btnShowInstall { margin-bottom: 10px; }
+
+.show-all { display:block; margin-top:8px; font-size:.95rem; }
+#langSelect { width:100%; margin-bottom:10px; }
+
+.version { opacity:.7; }

@@ -1,4 +1,7 @@
 (function(){
+  // Verhoog dit nummer bij elke wijziging, samen met VERSION in sw.js.
+  const APP_VERSION = '1.2.0';
+  document.getElementById('appVersion').textContent = APP_VERSION;
   const textInput = document.getElementById('textInput');
   const readingView = document.getElementById('readingView');
   const btnGirl = document.getElementById('btnGirl');
@@ -71,8 +74,16 @@
     return (en >= 2 && en > nl) ? 'en' : 'nl';
   }
 
+  const langSelect = document.getElementById('langSelect');
+  const showAllVoices = document.getElementById('showAllVoices');
+  let langPref = 'auto';
+  let showAll = false;
+  try { langPref = localStorage.getItem('vh_lang') || 'auto'; showAll = localStorage.getItem('vh_showAll') === '1'; } catch (e) {}
+  langSelect.value = langPref;
+  showAllVoices.checked = showAll;
+
   function refreshLang(){
-    const lang = detectLang(textInput.value);
+    const lang = langPref === 'auto' ? detectLang(textInput.value) : langPref;
     if (lang === currentLang) return;
     currentLang = lang;
     if (voices.length) { autoAssignGenderVoices(); applyGenderSelection(); }
@@ -149,7 +160,8 @@
   function renderVoiceSelect(){
     if (!voiceSelect || !voices.length) return;
     const dutch = langVoices();
-    const list = (dutch.length ? dutch : voices).slice().sort((a, b) =>
+    const list = (showAll || !dutch.length ? voices : dutch).slice().sort((a, b) =>
+      (showAll ? voiceLang(a).localeCompare(voiceLang(b)) : 0) ||
       (voiceLang(a).startsWith('nl-be') - voiceLang(b).startsWith('nl-be')) || a.name.localeCompare(b.name));
     voiceSelect.innerHTML = '';
     const auto = document.createElement('option');
@@ -165,12 +177,24 @@
     });
     const chosen = getChosenVoice();
     voiceSelect.value = chosen ? chosen.voiceURI : '';
-    voiceLabelEl.textContent = 'Kies een stem' + (currentLang === 'en' ? ' (de tekst lijkt Engels)' : '');
+    voiceLabelEl.textContent = 'Kies een stem' + (currentLang === 'en' ? ' (Engels)' : '');
     const langName = currentLang === 'en' ? 'Engelse' : 'Nederlandse';
     voiceHint.textContent = dutch.length
       ? ''
       : 'Er is geen ' + langName + ' stem gevonden. Op een iPhone/iPad: Instellingen → Toegankelijkheid → Gesproken content → Stemmen → ' + (currentLang === 'en' ? 'Engels' : 'Nederlands') + '.';
   }
+
+  langSelect.addEventListener('change', () => {
+    langPref = langSelect.value;
+    try { localStorage.setItem('vh_lang', langPref); } catch (e) {}
+    refreshLang();
+    if (voices.length) renderVoiceSelect();
+  });
+  showAllVoices.addEventListener('change', () => {
+    showAll = showAllVoices.checked;
+    try { localStorage.setItem('vh_showAll', showAll ? '1' : '0'); } catch (e) {}
+    renderVoiceSelect();
+  });
 
   voiceSelect.addEventListener('change', () => {
     try {
@@ -184,7 +208,7 @@
   function playVoiceSample(){
     if (!('speechSynthesis' in window)) return;
     if (isPlaying || isPaused) stopPlayback();
-    speechSynthesis.cancel();
+    cancelSpeech();
     const voice = getSelectedVoice();
     const name = voice ? voice.name : (currentLang === 'en' ? 'your voice' : 'je stem');
     const utter = new SpeechSynthesisUtterance(currentLang === 'en'
@@ -286,7 +310,7 @@
   // ---- Text tools ----
   btnClear.addEventListener('click', () => {
     releaseWakeLock();
-    speechSynthesis.cancel();
+    cancelSpeech();
     isPlaying = false;
     isPaused = false;
     exitReadingMode();
@@ -320,6 +344,14 @@
   let currentIndex = -1;
   let isPaused = false;
   let isPlaying = false;
+  // Elke keer dat het voorlezen wordt onderbroken, verandert het token. Zo
+  // negeren de callbacks van een afgebroken zin (die in sommige browsers toch
+  // nog 'end' of 'error' melden) en gaat het niet dubbel of te ver door.
+  let playToken = 0;
+  function cancelSpeech(){
+    playToken++;
+    speechSynthesis.cancel();
+  }
 
   function splitSentences(text){
     const trimmed = text.trim();
@@ -406,6 +438,7 @@
     s.el.classList.add('current');
     s.el.scrollIntoView({ block: 'center', behavior: 'smooth' });
 
+    const token = playToken;
     const utter = new SpeechSynthesisUtterance(s.text);
     const voice = getSelectedVoice();
     if (voice) utter.voice = voice;
@@ -415,6 +448,7 @@
     utter.lang = (voice && voice.lang) || FALLBACK_LANG[currentLang];
 
     utter.onboundary = (e) => {
+      if (token !== playToken) return;
       if (e.name !== 'word' && e.charIndex === undefined) return;
       const word = s.words.find(w => e.charIndex >= w.start && e.charIndex < w.end) ||
                    s.words.find(w => e.charIndex <= w.start);
@@ -423,11 +457,12 @@
     };
 
     utter.onend = () => {
-      if (!isPlaying) return;
-      setTimeout(() => { if (isPlaying) speakSentence(i + 1); }, parseInt(getOpt('pause'), 10));
+      if (!isPlaying || token !== playToken) return;
+      setTimeout(() => { if (isPlaying && token === playToken) speakSentence(i + 1); }, parseInt(getOpt('pause'), 10));
     };
-    utter.onerror = () => {
-      if (isPlaying) setTimeout(() => speakSentence(i + 1), 100);
+    utter.onerror = (e) => {
+      if (e && (e.error === 'canceled' || e.error === 'interrupted')) return;
+      if (isPlaying && token === playToken) setTimeout(() => { if (isPlaying && token === playToken) speakSentence(i + 1); }, 100);
     };
 
     speechSynthesis.speak(utter);
@@ -472,7 +507,7 @@
     releaseWakeLock();
     isPlaying = false;
     isPaused = false;
-    speechSynthesis.cancel();
+    cancelSpeech();
     clearHighlights();
     currentIndex = -1;
     btnPlay.disabled = false;
@@ -509,14 +544,24 @@
   btnStop.addEventListener('click', stopPlayback);
 
   btnRestart.addEventListener('click', () => {
-    speechSynthesis.cancel();
+    cancelSpeech();
     isPaused = false;
     startPlayback(0);
   });
 
+  // Tik op een zin om vanaf daar verder te lezen.
+  readingView.addEventListener('click', (e) => {
+    const sEl = e.target.closest('.sentence');
+    if (!sEl) return;
+    const idx = sentenceEls.findIndex(s => s.el === sEl);
+    if (idx < 0) return;
+    cancelSpeech();
+    startPlayback(idx);
+  });
+
   btnEdit.addEventListener('click', () => {
     releaseWakeLock();
-    speechSynthesis.cancel();
+    cancelSpeech();
     isPlaying = false;
     isPaused = false;
     exitReadingMode();
@@ -556,7 +601,7 @@
   const OCR_STATUS_LABELS = {
     'loading tesseract core': 'Tekstherkenning laden...',
     'initializing tesseract': 'Even opstarten...',
-    'loading language traineddata': 'Nederlands woordenboek laden...',
+    'loading language traineddata': 'Woordenboek laden...',
     'initializing api': 'Bijna klaar om te lezen...',
     'recognizing text': 'Tekst herkennen...'
   };
@@ -755,7 +800,7 @@
     setOcrStatus('Voorbereiden...', 0);
     try {
       const processed = await preprocessImage(file, { ...crop });
-      const result = await Tesseract.recognize(processed, 'nld', {
+      const result = await Tesseract.recognize(processed, langPref === 'en' ? 'eng' : langPref === 'nl' ? 'nld' : 'nld+eng', {
         logger: (m) => {
           const label = OCR_STATUS_LABELS[m.status] || 'Bezig...';
           setOcrStatus(label, typeof m.progress === 'number' ? m.progress : 0);
@@ -766,7 +811,7 @@
         setOcrStatus('Geen tekst gevonden. Maak het kader om de tekst heen wat groter, of probeer een scherpere foto.', null, true);
       } else {
         releaseWakeLock();
-        speechSynthesis.cancel();
+        cancelSpeech();
         isPlaying = false; isPaused = false;
         exitReadingMode();
         btnPlay.disabled = false; btnPause.disabled = true; btnStop.disabled = true; btnRestart.disabled = true;
@@ -810,14 +855,20 @@
   }
 
   function persistSavedTexts(items){
-    localStorage.setItem('vh_savedTexts', JSON.stringify(items));
+    try {
+      localStorage.setItem('vh_savedTexts', JSON.stringify(items));
+      return true;
+    } catch (e) {
+      savedStatus.textContent = 'Bewaren is niet gelukt (opslag vol of uitgeschakeld).';
+      return false;
+    }
   }
 
   function openSavedText(id){
     const item = loadSavedTexts().find(i => i.id === id);
     if (!item) return;
     releaseWakeLock();
-    speechSynthesis.cancel();
+    cancelSpeech();
     isPlaying = false;
     isPaused = false;
     exitReadingMode();
@@ -888,9 +939,10 @@
     const name = saveNameInput.value.trim() || (text.slice(0, 28) + (text.length > 28 ? '…' : ''));
     const id = Date.now() + '-' + Math.random().toString(36).slice(2, 8);
     items.push({ id, name, text });
-    persistSavedTexts(items);
+    if (!persistSavedTexts(items)) return;
     saveNameInput.value = '';
     renderSavedList();
+    savedStatus.textContent += ' – bewaard ✅';
   });
 
   renderSavedList();
