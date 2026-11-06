@@ -69,11 +69,16 @@
 
   function autoAssignGenderVoices(){
     const pool = getDutchVoicePool();
+    const dutchAll = voices.filter(v => voiceLang(v).startsWith('nl'));
+    const isBE = (v) => voiceLang(v).startsWith('nl-be');
+    // Nederlands uit Nederland gaat voor, daarna de beste kwaliteit.
+    const rank = (a, b) => (isBE(a) - isBE(b)) || (scoreVoice(b) - scoreVoice(a));
 
-    const girls = pool.filter(v => guessGender(v) === 'girl').sort((a,b)=>scoreVoice(b)-scoreVoice(a));
-    const boys = pool.filter(v => guessGender(v) === 'boy').sort((a,b)=>scoreVoice(b)-scoreVoice(a));
+    // Meisje: een vrouwenstem uit Nederland, anders een Vlaamse vrouwenstem (liever dan een mannenstem).
+    const femaleCandidates = (dutchAll.length ? dutchAll : voices).filter(v => guessGender(v) === 'girl').sort(rank);
+    const boys = pool.filter(v => guessGender(v) === 'boy').sort(rank);
 
-    girlVoice = girls[0] || null;
+    girlVoice = femaleCandidates[0] || null;
     boyVoice = boys[0] || null;
 
     if (!girlVoice) girlVoice = pool.find(v => v !== boyVoice) || pool[0] || voices[0];
