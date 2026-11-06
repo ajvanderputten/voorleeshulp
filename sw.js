@@ -1,5 +1,5 @@
 // Offline-cache voor Voorleeshulp. Verhoog VERSION als bestanden veranderen.
-const VERSION = 'voorleeshulp-v2';
+const VERSION = 'voorleeshulp-v4';
 const SHELL = ['./', 'index.html', 'style.css', 'app.js', 'manifest.webmanifest', 'icon.svg', 'icon-180.png', 'icon-192.png', 'icon-512.png', 'fonts/slackey.woff2'];
 // Tekstherkenning (tesseract.js) komt van deze hosts; na het eerste gebruik werkt ze ook offline.
 const CDN_HOSTS = ['cdn.jsdelivr.net', 'tessdata.projectnaptha.com'];
