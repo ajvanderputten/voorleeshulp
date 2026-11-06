@@ -15,6 +15,9 @@
   const rateLabel = document.getElementById('rateLabel');
   const speedPresets = document.querySelectorAll('.speed-presets button');
   const status = document.getElementById('status');
+  const voiceSelect = document.getElementById('voiceSelect');
+  const btnVoiceTest = document.getElementById('btnVoiceTest');
+  const voiceHint = document.getElementById('voiceHint');
 
 
   let voices = [];
@@ -50,6 +53,7 @@
     if (!voices.length) return;
     autoAssignGenderVoices();
     applyGenderSelection();
+    renderVoiceSelect();
   }
 
   let girlVoice = null, boyVoice = null;
@@ -93,10 +97,72 @@
   function applyGenderSelection(){
     btnGirl.classList.toggle('active', genderPref === 'girl');
     btnBoy.classList.toggle('active', genderPref === 'boy');
+    renderVoiceSelect();
+  }
+
+  // Zelf gekozen stem, per knop (vrouw/man) onthouden.
+  function chosenVoiceKey(){ return 'vh_voice_' + genderPref; }
+  function getChosenVoice(){
+    let uri = '';
+    try { uri = localStorage.getItem(chosenVoiceKey()) || ''; } catch (e) {}
+    if (!uri) return null;
+    return voices.find(v => v.voiceURI === uri) || null;
   }
 
   function getSelectedVoice(){
-    return (genderPref === 'girl' ? girlVoice : boyVoice) || voices[0];
+    return getChosenVoice() || (genderPref === 'girl' ? girlVoice : boyVoice) || voices[0];
+  }
+
+  function voiceLabel(v){
+    const lang = voiceLang(v);
+    const region = lang.startsWith('nl-be') ? 'Vlaams' : lang.startsWith('nl') ? 'Nederland' : (v.lang || '');
+    return v.name + ' (' + region + ')';
+  }
+
+  function renderVoiceSelect(){
+    if (!voiceSelect || !voices.length) return;
+    const dutch = voices.filter(v => voiceLang(v).startsWith('nl'));
+    const list = (dutch.length ? dutch : voices).slice().sort((a, b) =>
+      (voiceLang(a).startsWith('nl-be') - voiceLang(b).startsWith('nl-be')) || a.name.localeCompare(b.name));
+    voiceSelect.innerHTML = '';
+    const auto = document.createElement('option');
+    auto.value = '';
+    const autoVoice = genderPref === 'girl' ? girlVoice : boyVoice;
+    auto.textContent = 'Automatisch' + (autoVoice ? ' – ' + autoVoice.name : '');
+    voiceSelect.appendChild(auto);
+    list.forEach(v => {
+      const o = document.createElement('option');
+      o.value = v.voiceURI;
+      o.textContent = voiceLabel(v);
+      voiceSelect.appendChild(o);
+    });
+    const chosen = getChosenVoice();
+    voiceSelect.value = chosen ? chosen.voiceURI : '';
+    voiceHint.textContent = dutch.length
+      ? ''
+      : 'Er is geen Nederlandse stem gevonden. Op een iPhone/iPad: Instellingen → Toegankelijkheid → Gesproken content → Stemmen → Nederlands.';
+  }
+
+  voiceSelect.addEventListener('change', () => {
+    try {
+      if (voiceSelect.value) localStorage.setItem(chosenVoiceKey(), voiceSelect.value);
+      else localStorage.removeItem(chosenVoiceKey());
+    } catch (e) {}
+    playVoiceSample();
+  });
+  btnVoiceTest.addEventListener('click', playVoiceSample);
+
+  function playVoiceSample(){
+    if (!('speechSynthesis' in window)) return;
+    if (isPlaying || isPaused) stopPlayback();
+    speechSynthesis.cancel();
+    const voice = getSelectedVoice();
+    const utter = new SpeechSynthesisUtterance('Hallo, ik ben ' + (voice ? voice.name : 'je stem') + '. Zo klink ik als ik voorlees.');
+    if (voice) utter.voice = voice;
+    utter.rate = parseFloat(rateSlider.value);
+    utter.pitch = getChosenVoice() ? 1.0 : (GENDER_PITCH[genderPref] || 1.0);
+    utter.lang = (voice && voice.lang) || 'nl-NL';
+    speechSynthesis.speak(utter);
   }
 
   btnGirl.addEventListener('click', () => {
@@ -136,6 +202,7 @@
 
   // ---- Text tools ----
   btnClear.addEventListener('click', () => {
+    releaseWakeLock();
     speechSynthesis.cancel();
     isPlaying = false;
     isPaused = false;
@@ -215,6 +282,23 @@
 
   function setStatus(msg){ status.textContent = msg; }
 
+  // ---- Scherm aan houden tijdens het voorlezen ----
+  let wakeLock = null;
+  async function acquireWakeLock(){
+    if (!('wakeLock' in navigator) || wakeLock) return;
+    try {
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', () => { wakeLock = null; });
+    } catch (e) { wakeLock = null; }
+  }
+  function releaseWakeLock(){
+    if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
+  }
+  // Het slot vervalt als het tabblad verborgen wordt; vraag het opnieuw aan zodra de pagina weer zichtbaar is.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && isPlaying) acquireWakeLock();
+  });
+
   function enterReadingMode(){
     textInput.classList.add('hidden');
     readingView.classList.add('active');
@@ -241,7 +325,7 @@
     const voice = getSelectedVoice();
     if (voice) utter.voice = voice;
     utter.rate = parseFloat(rateSlider.value);
-    utter.pitch = GENDER_PITCH[genderPref] || 1.0;
+    utter.pitch = getChosenVoice() ? 1.0 : (GENDER_PITCH[genderPref] || 1.0);
     utter.lang = (voice && voice.lang) || 'nl-NL';
 
     utter.onboundary = (e) => {
@@ -283,10 +367,12 @@
     btnStop.disabled = false;
     btnRestart.disabled = false;
     setStatus('Bezig met voorlezen...');
+    acquireWakeLock();
     speakSentence(fromIndex || 0);
   }
 
   function finishPlayback(){
+    releaseWakeLock();
     isPlaying = false;
     isPaused = false;
     clearHighlights();
@@ -297,6 +383,7 @@
   }
 
   function stopPlayback(){
+    releaseWakeLock();
     isPlaying = false;
     isPaused = false;
     speechSynthesis.cancel();
@@ -313,6 +400,7 @@
       isPaused = false;
       isPlaying = true;
       speechSynthesis.resume();
+      acquireWakeLock();
       btnPlay.disabled = true;
       btnPause.disabled = false;
       setStatus('Bezig met voorlezen...');
@@ -326,6 +414,7 @@
     isPaused = true;
     isPlaying = false;
     speechSynthesis.pause();
+    releaseWakeLock();
     btnPlay.disabled = false;
     btnPause.disabled = true;
     setStatus('Gepauzeerd.');
@@ -340,6 +429,7 @@
   });
 
   btnEdit.addEventListener('click', () => {
+    releaseWakeLock();
     speechSynthesis.cancel();
     isPlaying = false;
     isPaused = false;
@@ -362,12 +452,19 @@
   const scanPreview = document.getElementById('scanPreview');
   const scanImg = document.getElementById('scanImg');
   const btnRemoveScan = document.getElementById('btnRemoveScan');
+  const btnReadCrop = document.getElementById('btnReadCrop');
+  const btnFullImage = document.getElementById('btnFullImage');
+  const cropStage = document.getElementById('cropStage');
+  const cropBox = document.getElementById('cropBox');
   const ocrProgressWrap = document.getElementById('ocrProgressWrap');
   const ocrBarFill = document.getElementById('ocrBarFill');
   const ocrStatus = document.getElementById('ocrStatus');
 
   let ocrBusy = false;
   let scanImgUrl = null;
+  let pendingFile = null;
+  // Uitsnede als fractie (0-1) van de foto.
+  let crop = { x: 0, y: 0, w: 1, h: 1 };
 
   const OCR_STATUS_LABELS = {
     'loading tesseract core': 'Tekstherkenning laden...',
@@ -392,17 +489,36 @@
     cameraInput.disabled = disabled;
     fileInput.disabled = disabled;
     btnRemoveScan.disabled = disabled;
+    btnReadCrop.disabled = disabled;
+    btnFullImage.disabled = disabled;
+  }
+
+  const MIN_CROP = 0.08;
+
+  function renderCrop(){
+    cropBox.style.left = (crop.x * 100) + '%';
+    cropBox.style.top = (crop.y * 100) + '%';
+    cropBox.style.width = (crop.w * 100) + '%';
+    cropBox.style.height = (crop.h * 100) + '%';
+  }
+
+  function resetCrop(full){
+    const m = full ? 0 : 0.04;
+    crop = { x: m, y: m, w: 1 - 2 * m, h: 1 - 2 * m };
+    renderCrop();
   }
 
   function showPreview(file){
     if (scanImgUrl) URL.revokeObjectURL(scanImgUrl);
     scanImgUrl = URL.createObjectURL(file);
     scanImg.src = scanImgUrl;
-    scanPreview.style.display = 'flex';
+    scanPreview.style.display = 'block';
+    resetCrop(false);
   }
 
   function clearScan(){
     if (scanImgUrl) { URL.revokeObjectURL(scanImgUrl); scanImgUrl = null; }
+    pendingFile = null;
     scanImg.src = '';
     scanPreview.style.display = 'none';
     cameraInput.value = '';
@@ -410,24 +526,73 @@
     setOcrStatus('', null);
   }
 
+  // Kader verslepen (verplaatsen) of aan de hoeken/randen vergroten en verkleinen.
+  let drag = null;
+  cropBox.addEventListener('pointerdown', (e) => {
+    if (ocrBusy) return;
+    const handle = e.target.closest('.crop-handle');
+    drag = {
+      mode: handle ? handle.dataset.h : 'move',
+      startX: e.clientX, startY: e.clientY,
+      rect: cropStage.getBoundingClientRect(),
+      start: { ...crop }
+    };
+    cropBox.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+  cropBox.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    const dx = (e.clientX - drag.startX) / drag.rect.width;
+    const dy = (e.clientY - drag.startY) / drag.rect.height;
+    const c = drag.start;
+    const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+    if (drag.mode === 'move') {
+      crop = { x: clamp(c.x + dx, 0, 1 - c.w), y: clamp(c.y + dy, 0, 1 - c.h), w: c.w, h: c.h };
+    } else {
+      let left = c.x, right = c.x + c.w, top = c.y, bottom = c.y + c.h;
+      if (drag.mode.includes('w')) left = clamp(left + dx, 0, right - MIN_CROP);
+      if (drag.mode.includes('e')) right = clamp(right + dx, left + MIN_CROP, 1);
+      if (drag.mode.includes('n')) top = clamp(top + dy, 0, bottom - MIN_CROP);
+      if (drag.mode.includes('s')) bottom = clamp(bottom + dy, top + MIN_CROP, 1);
+      crop = { x: left, y: top, w: right - left, h: bottom - top };
+    }
+    renderCrop();
+  });
+  const endDrag = () => { drag = null; };
+  cropBox.addEventListener('pointerup', endDrag);
+  cropBox.addEventListener('pointercancel', endDrag);
+
+  btnFullImage.addEventListener('click', () => resetCrop(true));
+  btnReadCrop.addEventListener('click', () => { if (pendingFile) runOCR(pendingFile); });
+
+  function startCrop(file){
+    if (ocrBusy) return;
+    pendingFile = file;
+    showPreview(file);
+    setOcrStatus('Kies alleen het stuk met tekst en tik op “Tekst lezen”.', null);
+    scanPreview.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+
   // Verbetert de foto voor tekstherkenning: schaalt naar een goede grootte,
   // maakt grijs en rekt het contrast op. Dat geeft minder ruis en dus minder
   // losse leestekens.
-  function preprocessImage(file){
+  function preprocessImage(file, area){
     return new Promise((resolve) => {
       const img = new Image();
       const url = URL.createObjectURL(file);
       img.onload = () => {
         try {
-          const { width, height } = img;
-          const longest = Math.max(width, height);
+          const a = area || { x: 0, y: 0, w: 1, h: 1 };
+          const sx = Math.round(a.x * img.width), sy = Math.round(a.y * img.height);
+          const sw = Math.max(1, Math.round(a.w * img.width)), sh = Math.max(1, Math.round(a.h * img.height));
+          const longest = Math.max(sw, sh);
           const target = Math.min(2400, Math.max(1600, longest));
           const scale = target / longest;
           const canvas = document.createElement('canvas');
-          canvas.width = Math.round(width * scale);
-          canvas.height = Math.round(height * scale);
+          canvas.width = Math.round(sw * scale);
+          canvas.height = Math.round(sh * scale);
           const ctx = canvas.getContext('2d', { willReadFrequently: true });
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
           const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
           const px = data.data;
           const hist = new Array(256).fill(0);
@@ -500,10 +665,9 @@
     }
     ocrBusy = true;
     setScanControlsDisabled(true);
-    showPreview(file);
     setOcrStatus('Voorbereiden...', 0);
     try {
-      const processed = await preprocessImage(file);
+      const processed = await preprocessImage(file, { ...crop });
       const result = await Tesseract.recognize(processed, 'nld', {
         logger: (m) => {
           const label = OCR_STATUS_LABELS[m.status] || 'Bezig...';
@@ -512,8 +676,9 @@
       });
       const text = cleanOcrResult(result.data);
       if (!text) {
-        setOcrStatus('Geen tekst gevonden. Probeer een duidelijkere of scherpere foto.', null, true);
+        setOcrStatus('Geen tekst gevonden. Maak het kader om de tekst heen wat groter, of probeer een scherpere foto.', null, true);
       } else {
+        releaseWakeLock();
         speechSynthesis.cancel();
         isPlaying = false; isPaused = false;
         exitReadingMode();
@@ -533,11 +698,11 @@
 
   cameraInput.addEventListener('change', () => {
     const file = cameraInput.files && cameraInput.files[0];
-    if (file) runOCR(file);
+    if (file) startCrop(file);
   });
   fileInput.addEventListener('change', () => {
     const file = fileInput.files && fileInput.files[0];
-    if (file) runOCR(file);
+    if (file) startCrop(file);
   });
   btnRemoveScan.addEventListener('click', clearScan);
 
@@ -563,6 +728,7 @@
   function openSavedText(id){
     const item = loadSavedTexts().find(i => i.id === id);
     if (!item) return;
+    releaseWakeLock();
     speechSynthesis.cancel();
     isPlaying = false;
     isPaused = false;
@@ -639,4 +805,11 @@
   });
 
   renderSavedList();
+
+  // ---- Installeerbaar + offline (service worker) ----
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    });
+  }
 })();
