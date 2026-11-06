@@ -1,6 +1,6 @@
 (function(){
   // Verhoog dit nummer bij elke wijziging, samen met VERSION in sw.js.
-  const APP_VERSION = '1.2.0';
+  const APP_VERSION = '1.3.0';
   document.getElementById('appVersion').textContent = APP_VERSION;
   const textInput = document.getElementById('textInput');
   const readingView = document.getElementById('readingView');
@@ -94,8 +94,23 @@
     return (v.lang || '').toLowerCase().replace('_', '-');
   }
 
+  // Natuurlijke stemmen: "Natural"/"Neural" (Edge), "Premium"/"Enhanced" (iPhone/Mac), Siri en Google-stemmen.
+  function isNatural(v){
+    return /natural|neural|premium|enhanced|siri|google|online/i.test(v.name);
+  }
+
+  function britishNatural(){
+    return voices.filter(v => voiceLang(v).startsWith('en-gb') && isNatural(v));
+  }
+
   function langVoices(){
-    return voices.filter(v => voiceLang(v).startsWith(currentLang));
+    const all = voices.filter(v => voiceLang(v).startsWith(currentLang));
+    if (currentLang !== 'en') return all;
+    // Engels: alleen Britse stemmen, bij voorkeur alleen de natuurlijke.
+    const gb = all.filter(v => voiceLang(v).startsWith('en-gb'));
+    if (!gb.length) return all;
+    const nat = gb.filter(isNatural);
+    return nat.length ? nat : gb;
   }
 
   function getDutchVoicePool(){
@@ -180,7 +195,9 @@
     voiceLabelEl.textContent = 'Kies een stem' + (currentLang === 'en' ? ' (Engels)' : '');
     const langName = currentLang === 'en' ? 'Engelse' : 'Nederlandse';
     voiceHint.textContent = dutch.length
-      ? ''
+      ? (currentLang === 'en' && !britishNatural().length
+          ? 'Er is geen natuurlijke Britse stem gevonden; hier staan de beste Britse stemmen die er zijn. Op een iPhone/iPad kun je een betere stem downloaden via Instellingen → Toegankelijkheid → Gesproken content → Stemmen → Engels → Engels (VK).'
+          : '')
       : 'Er is geen ' + langName + ' stem gevonden. Op een iPhone/iPad: Instellingen → Toegankelijkheid → Gesproken content → Stemmen → ' + (currentLang === 'en' ? 'Engels' : 'Nederlands') + '.';
   }
 
